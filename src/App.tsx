@@ -50,21 +50,84 @@ const LoadingScreen: React.FC = () => {
   );
 };
 
+// Debug Info Component (только для разработки)
+interface DebugData {
+  isReady: boolean;
+  hasTelegramWebApp: boolean;
+  hasUser: boolean;
+  webAppVersion?: string;
+  platform?: string;
+  initData?: string;
+  isDev: boolean;
+  currentUser?: unknown;
+}
+
+const DebugInfo: React.FC<{ info: DebugData }> = ({ info }) => {
+  if (import.meta.env.PROD) return null;
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: '80px',
+        left: '10px',
+        right: '10px',
+        background: 'rgba(0,0,0,0.9)',
+        color: '#0f0',
+        padding: '10px',
+        fontSize: '10px',
+        borderRadius: '8px',
+        maxHeight: '200px',
+        overflow: 'auto',
+        zIndex: 9999,
+        fontFamily: 'monospace',
+      }}
+    >
+      <pre>{JSON.stringify(info, null, 2)}</pre>
+    </div>
+  );
+};
+
 // Main App Component
 const App: React.FC = () => {
   const { user: telegramUser, isReady } = useTelegram();
   const { user, login, isLoading } = useAuthStore();
   const [isInitializing, setIsInitializing] = useState(true);
+  const [debugInfo, setDebugInfo] = useState<DebugData>({
+    isReady: false,
+    hasTelegramWebApp: false,
+    hasUser: false,
+    isDev: false,
+  });
 
   useEffect(() => {
     const initializeApp = async () => {
+      // Отладочная информация
+      const debug: DebugData = {
+        isReady,
+        hasTelegramWebApp: !!window.Telegram?.WebApp,
+        hasUser: !!telegramUser,
+        webAppVersion: window.Telegram?.WebApp?.version,
+        platform: window.Telegram?.WebApp?.platform,
+        initData: window.Telegram?.WebApp?.initData,
+        isDev: import.meta.env.DEV,
+      };
+      
+      setDebugInfo(debug);
+      console.log('🔍 Debug Info:', debug);
+
       // Ждем инициализации Telegram WebApp
-      if (!isReady) return;
+      if (!isReady) {
+        console.log('⏳ Waiting for Telegram WebApp to be ready...');
+        return;
+      }
 
       // Если есть данные пользователя из Telegram
       if (telegramUser) {
-        // Авторизуем пользователя через Supabase
+        console.log('👤 Telegram user found:', telegramUser);
         await login(telegramUser);
+      } else {
+        console.warn('⚠️ No Telegram user data');
       }
 
       setIsInitializing(false);
@@ -75,11 +138,22 @@ const App: React.FC = () => {
 
   // Показываем экран загрузки
   if (isInitializing || isLoading) {
-    return <LoadingScreen />;
+    return (
+      <>
+        <LoadingScreen />
+        <DebugInfo info={debugInfo} />
+      </>
+    );
   }
 
-  // Если нет пользователя после инициализации (не в Telegram)
-  if (!user && !telegramUser) {
+  // ВРЕМЕННО: разрешаем доступ всем для тестирования
+  // Проверяем только в production и если точно нет Telegram
+  const isTelegramEnvironment = 
+    !!window.Telegram?.WebApp || 
+    import.meta.env.DEV || 
+    window.location.search.includes('tgWebAppData');
+
+  if (!isTelegramEnvironment && import.meta.env.PROD) {
     return (
       <div
         style={{
@@ -90,16 +164,28 @@ const App: React.FC = () => {
           minHeight: '100vh',
           padding: '20px',
           textAlign: 'center',
+          background: '#0F1115',
+          color: '#F5F7FA',
         }}
       >
         <h1 style={{ fontSize: '48px', marginBottom: '20px' }}>🚫</h1>
         <h2 style={{ marginBottom: '10px' }}>Доступ запрещен</h2>
-        <p style={{ color: '#888' }}>
+        <p style={{ color: '#888', marginBottom: '20px' }}>
           Это приложение доступно только через Telegram Mini App
         </p>
-        <p style={{ color: '#888', marginTop: '10px', fontSize: '14px' }}>
+        <p style={{ color: '#888', fontSize: '14px' }}>
           Откройте приложение в Telegram
         </p>
+        
+        {/* Debug info */}
+        <div style={{ marginTop: '20px', fontSize: '12px', color: '#666' }}>
+          <details>
+            <summary>Debug Info</summary>
+            <pre style={{ textAlign: 'left', marginTop: '10px' }}>
+              {JSON.stringify(debugInfo, null, 2)}
+            </pre>
+          </details>
+        </div>
       </div>
     );
   }
@@ -116,6 +202,9 @@ const App: React.FC = () => {
         {/* Redirect to home for unknown routes */}
         <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
       </Routes>
+      
+      {/* Debug panel в dev режиме */}
+      <DebugInfo info={{ ...debugInfo, currentUser: user }} />
     </BrowserRouter>
   );
 };
