@@ -38,25 +38,58 @@ export const useTelegram = (): UseTelegramReturn => {
   const [webApp, setWebApp] = useState<TelegramWebApp | null>(null);
 
   useEffect(() => {
-    const app = window.Telegram?.WebApp;
+    // Ждем загрузки SDK с retry логикой
+    let attempts = 0;
+    const maxAttempts = 100; // 10 секунд
+    
+    const checkTelegram = () => {
+      attempts++;
+      
+      const app = window.Telegram?.WebApp;
 
-    if (app) {
-      app.ready();
-      app.expand();
-      setWebApp(app);
-      setIsReady(true);
+      if (app) {
+        console.log('✅ Telegram WebApp found:', {
+          version: app.version,
+          platform: app.platform,
+          colorScheme: app.colorScheme,
+          hasUser: !!app.initDataUnsafe?.user
+        });
 
-      // Устанавливаем цвета темы
-      if (app.colorScheme === 'dark') {
-        document.body.classList.add('dark');
+        app.ready();
+        app.expand();
+        setWebApp(app);
+        setIsReady(true);
+
+        // Устанавливаем цвета темы
+        if (app.colorScheme === 'dark') {
+          document.body.classList.add('dark');
+        } else {
+          document.body.classList.remove('dark');
+        }
+        
+        // Устанавливаем цвета интерфейса
+        try {
+          if (app.setHeaderColor) {
+            app.setHeaderColor('#0F1115');
+          }
+          if (app.setBackgroundColor) {
+            app.setBackgroundColor('#0F1115');
+          }
+        } catch (error) {
+          console.warn('Failed to set colors:', error);
+        }
+      } else if (attempts < maxAttempts) {
+        console.log(`⏳ Waiting for Telegram WebApp... (${attempts}/${maxAttempts})`);
+        setTimeout(checkTelegram, 100);
       } else {
-        document.body.classList.remove('dark');
+        console.warn('⚠️ Telegram WebApp not available after', maxAttempts, 'attempts');
+        console.log('Using development mode with mock data');
+        setIsReady(true);
       }
-    } else {
-      // Для разработки без Telegram - используем mock
-      console.warn('Telegram WebApp is not available. Using mock data for development.');
-      setIsReady(true);
-    }
+    };
+
+    // Начинаем проверку
+    checkTelegram();
   }, []);
 
   const showMainButton = (text: string, onClick: () => void) => {

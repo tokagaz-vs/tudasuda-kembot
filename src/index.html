@@ -24,46 +24,33 @@
     <meta property="og:description" content="Игра-квест в реальном мире" />
     <meta property="og:type" content="website" />
     
-    <!-- ВАЖНО: Telegram Web App SDK - загружаем ПЕРВЫМ -->
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+   <!-- Telegram Web App SDK с fallback -->
+<script>
+  (function() {
+    // Пытаемся загрузить с CDN
+    const script = document.createElement('script');
+    script.src = 'https://telegram.org/js/telegram-web-app.js';
+    script.async = false;
     
-    <!-- Проверка загрузки SDK -->
-    <script>
-      // Ждем полной загрузки Telegram SDK
-      (function() {
-        let attempts = 0;
-        const maxAttempts = 50;
+    script.onerror = function() {
+      console.warn('⚠️ Failed to load SDK from CDN, using local copy');
+      // Если CDN не работает, загружаем локальную копию
+      const localScript = document.createElement('script');
+      localScript.src = '/telegram-web-app.js';
+      localScript.async = false;
+      document.head.appendChild(localScript);
+    };
+    
+    script.onload = function() {
+      console.log('✅ Telegram SDK loaded from CDN');
+    };
+    
+    document.head.appendChild(script);
+  })();
+</script>
         
-        function checkTelegram() {
-          attempts++;
-          
-          if (window.Telegram && window.Telegram.WebApp) {
-            console.log('✅ Telegram WebApp SDK loaded successfully');
-            window.Telegram.WebApp.ready();
-            window.Telegram.WebApp.expand();
-            
-            // Устанавливаем цвета
-            if (window.Telegram.WebApp.setHeaderColor) {
-              window.Telegram.WebApp.setHeaderColor('#0F1115');
-            }
-            if (window.Telegram.WebApp.setBackgroundColor) {
-              window.Telegram.WebApp.setBackgroundColor('#0F1115');
-            }
-            
-            console.log('Telegram WebApp info:', {
-              version: window.Telegram.WebApp.version,
-              platform: window.Telegram.WebApp.platform,
-              initData: window.Telegram.WebApp.initData ? 'Present' : 'Empty'
-            });
-          } else if (attempts < maxAttempts) {
-            console.log(`⏳ Waiting for Telegram SDK... (${attempts}/${maxAttempts})`);
-            setTimeout(checkTelegram, 100);
-          } else {
-            console.error('❌ Telegram WebApp SDK failed to load after', maxAttempts, 'attempts');
-            console.log('Available window properties:', Object.keys(window));
-          }
-        }
         
+
         // Начинаем проверку сразу
         checkTelegram();
       })();
