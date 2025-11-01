@@ -196,13 +196,17 @@ export const useTelegram = (): UseTelegramReturn => {
   const user = webApp?.initDataUnsafe?.user || (mock ? MOCK_USER : null);
 
   // ✅ Определение isTelegram - максимально толерантно для iOS
-  const isTelegram =
-    !!webApp ||
-    forceTg ||
-    isTelegramUA ||
-    isTgParam ||
-    isTgRef ||
-    window.__tgBoot?.ready === true;
+  // ВРЕМЕННЫЙ ФИКС: всегда true для дебага
+const isTelegram = true;
+
+// Оригинальный код (закомментирован)
+// const isTelegram =
+//   !!webApp ||
+//   forceTg ||
+//   isTelegramUA ||
+//   isTgParam ||
+//   isTgRef ||
+//   window.__tgBoot?.ready === true;
 
   const showMainButton = (text: string, onClick: () => void) => {
     if (!webApp) return;
