@@ -14,31 +14,8 @@ import {
   LeaderboardPage,
 } from '@/pages';
 
-// Protected Route Component
-const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, isAuthenticated } = useAuthStore();
-  const { user: telegramUser } = useTelegram();
-
-  // Если есть Telegram пользователь, но нет авторизации в системе
-  if (telegramUser && !isAuthenticated) {
-    return <LoadingScreen message="Синхронизация профиля..." />;
-  }
-
-  // Если нет ни Telegram пользователя, ни авторизации
-  if (!telegramUser && !isAuthenticated) {
-    return (
-      <div style={{ padding: '20px', textAlign: 'center' }}>
-        <h2>Ошибка доступа</h2>
-        <p>Это приложение доступно только в Telegram</p>
-      </div>
-    );
-  }
-
-  return <>{children}</>;
-};
-
-// Loading Screen
-const LoadingScreen: React.FC<{ message?: string }> = ({ message }) => {
+// Loading Screen Component
+const LoadingScreen: React.FC = () => {
   const { colors, spacing } = useTheme();
 
   return (
@@ -52,7 +29,6 @@ const LoadingScreen: React.FC<{ message?: string }> = ({ message }) => {
         background: colors.background,
         color: colors.text,
         padding: `${spacing.xl}px`,
-        gap: `${spacing.lg}px`,
       }}
     >
       <div
@@ -63,118 +39,156 @@ const LoadingScreen: React.FC<{ message?: string }> = ({ message }) => {
           borderTopColor: colors.primary,
           borderRadius: '50%',
           animation: 'spin 0.8s linear infinite',
+          marginBottom: `${spacing.lg}px`,
         }}
       />
-      <div style={{ textAlign: 'center' }}>
-        <h2 style={{ fontSize: '20px', fontWeight: 600, marginBottom: `${spacing.xs}px` }}>
-          {message || 'Загрузка...'}
-        </h2>
-        <p style={{ color: colors.textSecondary, fontSize: '14px' }}>
-          Подождите немного
-        </p>
-      </div>
-      <style>
-        {`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}
-      </style>
+      <h2 style={{ fontSize: '20px', fontWeight: 600 }}>Загрузка...</h2>
+      <p style={{ color: colors.textSecondary, marginTop: `${spacing.sm}px` }}>
+        Инициализация приложения
+      </p>
     </div>
   );
 };
 
-// Main App
+// Debug Info Component (только для разработки)
+const DebugInfo: React.FC<{ info: any }> = ({ info }) => {
+  if (import.meta.env.PROD) return null;
+
+  return (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: '80px',
+        left: '10px',
+        right: '10px',
+        background: 'rgba(0,0,0,0.9)',
+        color: '#0f0',
+        padding: '10px',
+        fontSize: '10px',
+        borderRadius: '8px',
+        maxHeight: '200px',
+        overflow: 'auto',
+        zIndex: 9999,
+        fontFamily: 'monospace',
+      }}
+    >
+      <pre>{JSON.stringify(info, null, 2)}</pre>
+    </div>
+  );
+};
+
+// Main App Component
 const App: React.FC = () => {
   const { user: telegramUser, isReady } = useTelegram();
-  const { login, isLoading, isAuthenticated, user } = useAuthStore();
+  const { user, login, isLoading } = useAuthStore();
   const [isInitializing, setIsInitializing] = useState(true);
-  const [authAttempted, setAuthAttempted] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>({});
 
   useEffect(() => {
     const initializeApp = async () => {
-      // Ждем готовности Telegram WebApp
-      if (!isReady) return;
+      // Отладочная информация
+      const debug = {
+        isReady,
+        hasTelegramWebApp: !!window.Telegram?.WebApp,
+        hasUser: !!telegramUser,
+        webAppVersion: window.Telegram?.WebApp?.version,
+        platform: window.Telegram?.WebApp?.platform,
+        initData: window.Telegram?.WebApp?.initData,
+        isDev: import.meta.env.DEV,
+      };
+      
+      setDebugInfo(debug);
+      console.log('🔍 Debug Info:', debug);
 
-      // Если уже авторизованы и есть пользователь
-      if (isAuthenticated && user) {
-        console.log('✅ Пользователь уже авторизован:', user);
-        setIsInitializing(false);
+      // Ждем инициализации Telegram WebApp
+      if (!isReady) {
+        console.log('⏳ Waiting for Telegram WebApp to be ready...');
         return;
       }
 
-      // Если есть Telegram пользователь и еще не пытались авторизоваться
-      if (telegramUser && !authAttempted) {
-        console.log('🔄 Авторизация через Telegram:', telegramUser);
-        setAuthAttempted(true);
-        
-        try {
-          const success = await login(telegramUser);
-          
-          if (success) {
-            console.log('✅ Авторизация успешна');
-          } else {
-            console.error('❌ Ошибка авторизации');
-          }
-        } catch (error) {
-          console.error('❌ Критическая ошибка авторизации:', error);
-        }
+      // Если есть данные пользователя из Telegram
+      if (telegramUser) {
+        console.log('👤 Telegram user found:', telegramUser);
+        await login(telegramUser);
+      } else {
+        console.warn('⚠️ No Telegram user data');
       }
 
       setIsInitializing(false);
     };
 
     initializeApp();
-  }, [isReady, telegramUser, login, isAuthenticated, user, authAttempted]);
+  }, [isReady, telegramUser, login]);
 
-  // Показываем загрузку пока инициализируется приложение
-  if (!isReady || isInitializing || (isLoading && !user)) {
-    return <LoadingScreen message="Инициализация приложения..." />;
+  // Показываем экран загрузки
+  if (isInitializing || isLoading) {
+    return (
+      <>
+        <LoadingScreen />
+        <DebugInfo info={debugInfo} />
+      </>
+    );
+  }
+
+  // ВРЕМЕННО ОТКЛЮЧАЕМ ПРОВЕРКУ для отладки
+  // Проверяем только в production и если точно нет Telegram
+  const isTelegramEnvironment = 
+    !!window.Telegram?.WebApp || 
+    import.meta.env.DEV || 
+    window.location.search.includes('tgWebAppData');
+
+  if (!isTelegramEnvironment && import.meta.env.PROD) {
+    return (
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          padding: '20px',
+          textAlign: 'center',
+          background: '#0F1115',
+          color: '#F5F7FA',
+        }}
+      >
+        <h1 style={{ fontSize: '48px', marginBottom: '20px' }}>🚫</h1>
+        <h2 style={{ marginBottom: '10px' }}>Доступ запрещен</h2>
+        <p style={{ color: '#888', marginBottom: '20px' }}>
+          Это приложение доступно только через Telegram Mini App
+        </p>
+        <p style={{ color: '#888', fontSize: '14px' }}>
+          Откройте приложение в Telegram
+        </p>
+        
+        {/* Debug info */}
+        <div style={{ marginTop: '20px', fontSize: '12px', color: '#666' }}>
+          <details>
+            <summary>Debug Info</summary>
+            <pre style={{ textAlign: 'left', marginTop: '10px' }}>
+              {JSON.stringify(debugInfo, null, 2)}
+            </pre>
+          </details>
+        </div>
+      </div>
+    );
   }
 
   return (
     <BrowserRouter>
       <Routes>
-        {/* Публичные роуты */}
         <Route path={ROUTES.home} element={<HomePage />} />
+        <Route path={ROUTES.profile} element={<ProfilePage />} />
+        <Route path={ROUTES.quests} element={<QuestsPage />} />
+        <Route path={ROUTES.map} element={<MapPage />} />
+        <Route path={ROUTES.leaderboard} element={<LeaderboardPage />} />
         
-        {/* Защищенные роуты */}
-        <Route
-          path={ROUTES.profile}
-          element={
-            <ProtectedRoute>
-              <ProfilePage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path={ROUTES.quests}
-          element={
-            <ProtectedRoute>
-              <QuestsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path={ROUTES.map}
-          element={
-            <ProtectedRoute>
-              <MapPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path={ROUTES.leaderboard}
-          element={
-            <ProtectedRoute>
-              <LeaderboardPage />
-            </ProtectedRoute>
-          }
-        />
-        
+        {/* Redirect to home for unknown routes */}
         <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
       </Routes>
+      
+      {/* Debug panel в dev режиме */}
+      <DebugInfo info={{ ...debugInfo, currentUser: user }} />
     </BrowserRouter>
   );
 };
