@@ -1,10 +1,108 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>tudasuda-game</title>
+    
+    <!-- Viewport для мобильных -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    
+    <!-- PWA мета-теги -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    
+    <!-- Цвет темы -->
+    <meta name="theme-color" content="#0F1115" />
+    <meta name="apple-mobile-web-app-title" content="TudaSuda" />
+    
+    <!-- Описание -->
+    <meta name="description" content="TudaSuda - игра-квест в реальном мире" />
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="TudaSuda Game" />
+    <meta property="og:description" content="Игра-квест в реальном мире" />
+    <meta property="og:type" content="website" />
+    
+    <!-- ВАЖНО: Telegram Web App SDK - загружаем ПЕРВЫМ -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    
+    <!-- Проверка загрузки SDK -->
+    <script>
+      // Ждем полной загрузки Telegram SDK
+      (function() {
+        let attempts = 0;
+        const maxAttempts = 50;
+        
+        function checkTelegram() {
+          attempts++;
+          
+          if (window.Telegram && window.Telegram.WebApp) {
+            console.log('✅ Telegram WebApp SDK loaded successfully');
+            window.Telegram.WebApp.ready();
+            window.Telegram.WebApp.expand();
+            
+            // Устанавливаем цвета
+            if (window.Telegram.WebApp.setHeaderColor) {
+              window.Telegram.WebApp.setHeaderColor('#0F1115');
+            }
+            if (window.Telegram.WebApp.setBackgroundColor) {
+              window.Telegram.WebApp.setBackgroundColor('#0F1115');
+            }
+            
+            console.log('Telegram WebApp info:', {
+              version: window.Telegram.WebApp.version,
+              platform: window.Telegram.WebApp.platform,
+              initData: window.Telegram.WebApp.initData ? 'Present' : 'Empty'
+            });
+          } else if (attempts < maxAttempts) {
+            console.log(`⏳ Waiting for Telegram SDK... (${attempts}/${maxAttempts})`);
+            setTimeout(checkTelegram, 100);
+          } else {
+            console.error('❌ Telegram WebApp SDK failed to load after', maxAttempts, 'attempts');
+            console.log('Available window properties:', Object.keys(window));
+          }
+        }
+        
+        // Начинаем проверку сразу
+        checkTelegram();
+      })();
+    </script>
+    
+    <title>TudaSuda Game</title>
+    
+    <style>
+      /* Prevent pull-to-refresh and overscroll */
+      html, body {
+        margin: 0;
+        padding: 0;
+        overscroll-behavior: none;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
+        position: fixed;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+      }
+      
+      /* Loading fallback */
+      #root {
+        min-height: 100vh;
+        background: #0F1115;
+        overflow-y: auto;
+        overflow-x: hidden;
+        height: 100vh;
+        -webkit-overflow-scrolling: touch;
+      }
+      
+      /* Safe area для iPhone */
+      @supports (padding: max(0px)) {
+        body {
+          padding-left: max(0px, env(safe-area-inset-left));
+          padding-right: max(0px, env(safe-area-inset-right));
+        }
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
