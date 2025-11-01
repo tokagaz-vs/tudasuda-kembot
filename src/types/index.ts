@@ -129,6 +129,7 @@ export interface User {
   username?: string;
   first_name: string;
   last_name?: string;
+  full_name?: string; // добавь это
   photo_url?: string;
   language_code: string;
   is_premium: boolean;
@@ -153,8 +154,15 @@ export interface User {
 // QUEST TYPES
 // =====================================================
 
-export type QuestDifficulty = 'easy' | 'medium' | 'hard' | 'expert';
-export type QuestCategory = 'exploration' | 'photo' | 'challenge' | 'social' | 'educational';
+export type QuestDifficulty = 'easy' | 'medium' | 'hard';
+export interface QuestCategory {
+  id: string;
+  name: string;
+  icon?: string;
+  color?: string;
+  description?: string;
+  created_at: string;
+}
 export type QuestStatus = 'not_started' | 'in_progress' | 'completed' | 'failed' | 'abandoned';
 
 export type TaskType = 'photo' | 'selfie' | 'text' | 'choice' | 'location' | 'qr';
@@ -207,31 +215,21 @@ export type Task = PhotoTask | SelfieTask | TextTask | ChoiceTask | LocationTask
 export interface Quest {
   id: string;
   title: string;
-  description: string;
-  short_description: string;
+  description?: string;
+  image_url?: string;
+  preview_images?: string[];
   difficulty: QuestDifficulty;
-  category: QuestCategory;
   reward_points: number;
-  reward_coins: number;
-  reward_experience: number;
-  latitude?: number;
-  longitude?: number;
-  radius: number;
-  address?: string;
-  city?: string;
-  required_level: number;
-  required_items?: string[];
-  max_participants?: number;
-  tasks: Task[];
-  is_active: boolean;
-  is_featured: boolean;
-  starts_at?: string;
-  ends_at?: string;
-  completion_count: number;
-  average_rating: number;
+  points_reward?: number; // алиас для совместимости
+  status: QuestStatus;
+  category?: QuestCategory; // опциональная категория
+  tags?: string[];
+  tips?: string;
+  estimated_duration?: number;
+  total_distance?: number;
+  created_by?: string;
   created_at: string;
   updated_at: string;
-  created_by?: string;
 }
 
 export interface TaskProgress {
@@ -492,3 +490,48 @@ export interface LocationData extends Coordinates {
   speed?: number;
   timestamp?: number;
 }
+
+export interface QuestPoint {
+  id: string;
+  quest_id: string;
+  order_number: number;
+  title: string;
+  description?: string;
+  latitude: number;
+  longitude: number;
+  radius: number;
+  task_type: 'multiple_choice' | 'text_input' | 'photo' | 'selfie';
+  task_data?: any;
+  correct_answer?: string;
+  points: number;
+  audio_url?: string;
+  hint?: string;
+  excursion_text?: string;
+  image_url?: string;
+  created_at: string;
+}
+
+export interface QuestWithDetails extends Quest {
+  points: QuestPoint[];
+  totalPoints: number;
+  pointsCount: number;
+}
+
+export interface UserProgress {
+  id: string;
+  user_id: string;
+  quest_id: string;
+  current_point: number;
+  status: 'in_progress' | 'completed' | 'abandoned';
+  started_at: string;
+  completed_at?: string;
+  total_points: number;
+}
+
+export interface QuestFilters {
+  category_id?: string;
+  difficulty?: QuestDifficulty;
+  search?: string;
+  status?: QuestStatus;
+}
+

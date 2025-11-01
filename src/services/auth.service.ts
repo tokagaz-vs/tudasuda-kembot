@@ -7,22 +7,26 @@ class AuthService {
    */
   async authenticateWithTelegram(telegramUser: TelegramUser): Promise<User | null> {
     try {
+      console.log('🔐 Начало авторизации:', telegramUser);
+
       // Проверяем, существует ли пользователь
-      const { data: existingUser } = await supabase
+      const { data: existingUser, error: selectError } = await supabase
         .from('users')
         .select('*')
         .eq('telegram_id', telegramUser.id)
-        .single();
+        .maybeSingle();
+
+      console.log('Результат поиска:', { existingUser, selectError });
 
       if (existingUser) {
         // Обновляем данные пользователя
-        const { data: updatedUser, error } = await supabase
+        const { data: updatedUser, error: updateError } = await supabase
           .from('users')
           .update({
-            username: telegramUser.username,
+            username: telegramUser.username || null,
             first_name: telegramUser.first_name,
-            last_name: telegramUser.last_name,
-            photo_url: telegramUser.photo_url,
+            last_name: telegramUser.last_name || null,
+            photo_url: telegramUser.photo_url || null,
             language_code: telegramUser.language_code || 'ru',
             is_premium: telegramUser.is_premium || false,
             last_login_at: new Date().toISOString(),
@@ -32,29 +36,53 @@ class AuthService {
           .select()
           .single();
 
-        if (error) throw error;
+        if (updateError) {
+          console.error('❌ Ошибка обновления:', updateError);
+          throw updateError;
+        }
+
+        console.log('✅ Пользователь обновлен:', updatedUser);
         return updatedUser as User;
       } else {
         // Создаем нового пользователя
-        const { data: newUser, error } = await supabase
+        const newUserData = {
+          telegram_id: telegramUser.id,
+          username: telegramUser.username || null,
+          first_name: telegramUser.first_name,
+          last_name: telegramUser.last_name || null,
+          photo_url: telegramUser.photo_url || null,
+          language_code: telegramUser.language_code || 'ru',
+          is_premium: telegramUser.is_premium || false,
+        };
+
+        console.log('📝 Создание пользователя:', newUserData);
+
+        const { data: newUser, error: insertError } = await supabase
           .from('users')
-          .insert({
-            telegram_id: telegramUser.id,
-            username: telegramUser.username,
-            first_name: telegramUser.first_name,
-            last_name: telegramUser.last_name,
-            photo_url: telegramUser.photo_url,
-            language_code: telegramUser.language_code || 'ru',
-            is_premium: telegramUser.is_premium || false,
-          })
+          .insert(newUserData)
           .select()
           .single();
 
-        if (error) throw error;
+        if (insertError) {
+          console.error('❌ Ошибка создания:', insertError);
+          throw insertError;
+        }
+
+        console.log('✅ Пользователь создан:', newUser);
         return newUser as User;
       }
-    } catch (error) {
-      console.error('Error authenticating with Telegram:', error);
+    } catch (error: any) {
+      console.error('❌ Ошибка авторизации:', error);
+      
+      // Детальная информация об ошибке
+      if (error.code === '42501') {
+        console.error('🔒 Ошибка прав доступа: необходимо настроить RLS политики в Supabase');
+      } else if (error.code === 'PGRST116') {
+        console.error('📭 Пользователь не найден в БД');
+      } else if (error.message) {
+        console.error('💬 Сообщение ошибки:', error.message);
+      }
+      
       return null;
     }
   }

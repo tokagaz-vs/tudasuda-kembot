@@ -1,103 +1,152 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { Eye, EyeSlash } from '@phosphor-icons/react';
 import { useTheme } from '@/hooks/useTheme';
-import clsx from 'clsx';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
+  helperText?: string;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  onRightIconClick?: () => void;
+  containerStyle?: React.CSSProperties;
+  isPassword?: boolean;
+  variant?: 'outlined' | 'filled';
+  inputSize?: 'small' | 'medium' | 'large';
 }
 
 export const Input: React.FC<InputProps> = ({
   label,
   error,
+  helperText,
   leftIcon,
   rightIcon,
-  className,
+  onRightIconClick,
+  containerStyle,
+  isPassword = false,
+  variant = 'outlined',
+  inputSize = 'medium',
+  style,
   ...props
 }) => {
-  const { colors, spacing, borderRadius, typography } = useTheme();
+  const { colors, spacing, borderRadius } = useTheme();
+  const [showPassword, setShowPassword] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
 
-  const inputStyles: React.CSSProperties = {
-    width: '100%',
-    padding: `${spacing.md}px ${spacing.base}px`,
-    paddingLeft: leftIcon ? `${spacing.xl}px` : `${spacing.base}px`,
-    paddingRight: rightIcon ? `${spacing.xl}px` : `${spacing.base}px`,
-    background: colors.surfaceAlt,
-    border: `1px solid ${error ? colors.error : colors.border}`,
-    borderRadius: borderRadius.md,
-    color: colors.text,
-    fontSize: typography.body.fontSize,
-    outline: 'none',
+  const getHeight = () => {
+    switch (inputSize) {
+      case 'small':
+        return 40;
+      case 'large':
+        return 56;
+      default:
+        return 48;
+    }
+  };
+
+  const containerWrapperStyle: React.CSSProperties = {
+    marginBottom: `${spacing.md}px`,
+    ...containerStyle,
+  };
+
+  const inputContainerStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: `${spacing.sm}px`,
+    height: `${getHeight()}px`,
+    padding: `0 ${spacing.md}px`,
+    background: variant === 'filled' ? colors.surfaceAlt : 'transparent',
+    border: variant === 'outlined' ? `1px solid ${error ? colors.error : isFocused ? colors.primary : colors.border}` : 'none',
+    borderRadius: `${borderRadius.md}px`,
     transition: 'all 0.2s ease',
   };
 
+  const inputStyle: React.CSSProperties = {
+    flex: 1,
+    border: 'none',
+    outline: 'none',
+    background: 'transparent',
+    color: colors.text,
+    fontSize: '16px',
+    fontFamily: 'inherit',
+    ...style,
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: 'block',
+    fontSize: '12px',
+    fontWeight: 600,
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    color: colors.text,
+    marginBottom: `${spacing.xs}px`,
+  };
+
+  const errorStyle: React.CSSProperties = {
+    fontSize: '12px',
+    color: colors.error,
+    marginTop: `${spacing.xs}px`,
+  };
+
+  const helperStyle: React.CSSProperties = {
+    fontSize: '12px',
+    color: colors.textSecondary,
+    marginTop: `${spacing.xs}px`,
+  };
+
   return (
-    <div className={clsx('input-wrapper', className)} style={{ width: '100%' }}>
-      {label && (
-        <label
-          style={{
-            display: 'block',
-            marginBottom: `${spacing.sm}px`,
-            fontSize: typography.sub.fontSize,
-            fontWeight: typography.label.fontWeight,
-            color: colors.textSecondary,
-          }}
-        >
-          {label}
-        </label>
-      )}
-      <div style={{ position: 'relative' }}>
-        {leftIcon && (
-          <div
+    <div style={containerWrapperStyle}>
+      {label && <label style={labelStyle}>{label}</label>}
+
+      <div style={inputContainerStyle}>
+        {leftIcon && <div style={{ display: 'flex', color: error ? colors.error : colors.textSecondary }}>{leftIcon}</div>}
+
+        <input
+          {...props}
+          type={isPassword && !showPassword ? 'password' : 'text'}
+          style={inputStyle}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+        />
+
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
             style={{
-              position: 'absolute',
-              left: `${spacing.md}px`,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: colors.textTertiary,
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              padding: 0,
+              color: colors.textSecondary,
             }}
           >
-            {leftIcon}
-          </div>
+            {showPassword ? <EyeSlash size={20} /> : <Eye size={20} />}
+          </button>
         )}
-        <input
-          style={inputStyles}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = colors.primary;
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = error ? colors.error : colors.border;
-          }}
-          {...props}
-        />
-        {rightIcon && (
-          <div
+
+        {rightIcon && !isPassword && (
+          <button
+            type="button"
+            onClick={onRightIconClick}
             style={{
-              position: 'absolute',
-              right: `${spacing.md}px`,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: colors.textTertiary,
+              background: 'none',
+              border: 'none',
+              cursor: onRightIconClick ? 'pointer' : 'default',
+              display: 'flex',
+              padding: 0,
+              color: colors.textSecondary,
             }}
+            disabled={!onRightIconClick}
           >
             {rightIcon}
-          </div>
+          </button>
         )}
       </div>
-      {error && (
-        <span
-          style={{
-            display: 'block',
-            marginTop: `${spacing.xs}px`,
-            fontSize: typography.caption.fontSize,
-            color: colors.error,
-          }}
-        >
-          {error}
-        </span>
-      )}
+
+      {error && <div style={errorStyle}>{error}</div>}
+      {helperText && !error && <div style={helperStyle}>{helperText}</div>}
     </div>
   );
 };

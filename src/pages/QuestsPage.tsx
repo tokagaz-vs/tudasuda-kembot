@@ -1,408 +1,560 @@
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Layout } from '@/components/layout';
-import { Card, Button, Input, Skeleton } from '@/components/ui';
+import { Card } from '@/components/ui';
 import { useTheme } from '@/hooks/useTheme';
-import { useTranslation } from '@/hooks/useTranslation';
+import { useTelegram } from '@/hooks/useTelegram';
 import { questService } from '@/services/quest.service';
-import { Quest, QuestDifficulty } from '@/types';
-import { CATEGORY_CONFIG, DIFFICULTY_CONFIG } from '@/constants';
+import { Quest, QuestCategory, QuestDifficulty, QuestFilters } from '@/types';
 import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '@/constants';
+import { 
+  MagnifyingGlass, 
+  Faders, 
+  X, 
+  Target, 
+  Star, 
+  Lightning, 
+  ArrowRight,
+  MapPin,
+  Clock,
+} from '@phosphor-icons/react';
+
+const DIFFICULTY_LEVELS = {
+  easy: { label: 'Легко', color: '#10B981' },
+  medium: { label: 'Средне', color: '#F59E0B' },
+  hard: { label: 'Сложно', color: '#EF4444' },
+};
 
 export const QuestsPage: React.FC = () => {
-  const { colors, spacing, borderRadius, typography } = useTheme();
-  const { t } = useTranslation();
+  const { colors, spacing } = useTheme();
+  const { hapticFeedback } = useTelegram();
   const navigate = useNavigate();
 
   const [quests, setQuests] = useState<Quest[]>([]);
+  const [categories, setCategories] = useState<QuestCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-
+  const [filters, setFilters] = useState<QuestFilters>({});
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedDifficulty, setSelectedDifficulty] = useState<QuestDifficulty | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   useEffect(() => {
     loadQuests();
-  }, []);
+  }, [filters]);
 
-  const loadQuests = async () => {
-    setIsLoading(true);
-    const data = await questService.getActiveQuests(100, 0);
-    setQuests(data);
+  const loadData = async () => {
+    await Promise.all([loadCategories(), loadQuests()]);
     setIsLoading(false);
   };
 
-  const categories = useMemo(() => {
-    const set = new Set<string>();
-    quests.forEach((q) => q.category && set.add(q.category));
-    return Array.from(set);
-  }, [quests]);
+  const loadCategories = async () => {
+    const { data } = await questService.getCategories();
+    if (data) setCategories(data);
+  };
 
-  const filteredQuests = useMemo(() => {
-    let list = quests;
+  const loadQuests = async () => {
+    const { data } = await questService.getQuests(filters);
+    if (data) setQuests(data);
+  };
 
-    if (selectedCategory) {
-      list = list.filter((q) => q.category === selectedCategory);
-    }
-    if (selectedDifficulty) {
-      list = list.filter((q) => q.difficulty === selectedDifficulty);
-    }
-    if (searchQuery.trim()) {
-      const q = searchQuery.trim().toLowerCase();
-      list = list.filter(
-        (item) =>
-          item.title.toLowerCase().includes(q) ||
-          (item.short_description || '').toLowerCase().includes(q) ||
-          (item.description || '').toLowerCase().includes(q)
-      );
-    }
+  const handleSearch = () => {
+    setFilters({ ...filters, search: searchQuery });
+  };
 
-    return list;
-  }, [quests, selectedCategory, selectedDifficulty, searchQuery]);
+  const toggleCategory = (categoryId: string) => {
+    hapticFeedback.impact('light');
+    setFilters({
+      ...filters,
+      category_id: filters.category_id === categoryId ? undefined : categoryId,
+    });
+  };
 
-  const clearFilters = useCallback(() => {
-    setSelectedCategory(null);
-    setSelectedDifficulty(null);
+  const toggleDifficulty = (difficulty: QuestDifficulty) => {
+    hapticFeedback.impact('light');
+    setFilters({
+      ...filters,
+      difficulty: filters.difficulty === difficulty ? undefined : difficulty,
+    });
+  };
+
+  const clearFilters = () => {
+    hapticFeedback.impact('medium');
+    setFilters({});
     setSearchQuery('');
-  }, []);
-
-  const CategoryChip: React.FC<{
-    id: string;
-    active: boolean;
-    onClick: () => void;
-  }> = ({ id, active, onClick }) => {
-    const cfg = CATEGORY_CONFIG[id as keyof typeof CATEGORY_CONFIG];
-    const color = cfg?.color || colors.primary;
-    return (
-      <button
-        onClick={onClick}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: `${spacing.xs}px`,
-          padding: `${spacing.sm}px ${spacing.md}px`,
-          borderRadius: '999px',
-          border: `2px solid ${active ? color : colors.border}`,
-          background: active ? color : colors.background,
-          color: active ? '#FFFFFF' : colors.text,
-          cursor: 'pointer',
-          fontSize: '13px',
-          fontWeight: 700,
-        }}
-      >
-        <span>{cfg?.icon || '🎯'}</span>
-        <span style={{ whiteSpace: 'nowrap' }}>{cfg ? t(`quests.categories.${id}`) : id}</span>
-      </button>
-    );
   };
 
-  const DifficultyChip: React.FC<{
-    id: QuestDifficulty;
-    active: boolean;
-    onClick: () => void;
-  }> = ({ id, active, onClick }) => {
-    const cfg = DIFFICULTY_CONFIG[id];
-    const color = cfg.color;
-    return (
-      <button
-        onClick={onClick}
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: `${spacing.xs}px`,
-          padding: `${spacing.sm}px ${spacing.md}px`,
-          borderRadius: '999px',
-          border: `2px solid ${active ? color : colors.border}`,
-          background: active ? color : colors.background,
-          color: active ? '#FFFFFF' : colors.text,
-          cursor: 'pointer',
-          fontSize: '13px',
-          fontWeight: 700,
-        }}
-      >
-        <span>{cfg.emoji}</span>
-        <span style={{ whiteSpace: 'nowrap' }}>{t(`quests.difficulties.${id}`)}</span>
-      </button>
-    );
-  };
-
-  const QuestCard: React.FC<{ quest: Quest }> = ({ quest }) => {
-    const catCfg = CATEGORY_CONFIG[quest.category as keyof typeof CATEGORY_CONFIG];
-    const accentColor = catCfg?.color || colors.primary;
-
-    return (
-      <Card
-        hover
-        onClick={() => navigate(`/quests/${quest.id}`)}
-        style={{ overflow: 'hidden', position: 'relative' }}
-      >
-        {/* Accent bar */}
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            right: 0,
-            top: 0,
-            height: '4px',
-            background: accentColor,
-          }}
-        />
-
-        <div style={{ display: 'flex', gap: `${spacing.md}px` }}>
-          {/* Icon block */}
-          <div
-            style={{
-              width: '80px',
-              height: '80px',
-              borderRadius: borderRadius.md,
-              background: colors.surfaceAlt,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '40px',
-              flexShrink: 0,
-            }}
-          >
-            {catCfg?.icon || '🎯'}
-          </div>
-
-          {/* Content */}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: `${spacing.sm}px`,
-                marginBottom: `${spacing.xs}px`,
-              }}
-            >
-              <h3
-                style={{
-                  ...typography.h4,
-                  margin: 0,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  flex: 1,
-                }}
-              >
-                {quest.title}
-              </h3>
-              {quest.is_featured && <span>⭐</span>}
-            </div>
-
-            {quest.description && (
-              <p
-                style={{
-                  ...typography.sub,
-                  color: colors.textSecondary,
-                  margin: `0 0 ${spacing.sm}px 0`,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                }}
-              >
-                {quest.description}
-              </p>
-            )}
-
-            {/* Meta */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.sm}px`, marginBottom: `${spacing.sm}px`, flexWrap: 'wrap' }}>
-              {/* Category badge */}
-              {quest.category && (
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: `${spacing.xs}px`,
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    background: colors.surfaceAlt,
-                    color: catCfg?.color || colors.textSecondary,
-                    padding: `${spacing.xs}px ${spacing.sm}px`,
-                    borderRadius: borderRadius.sm,
-                  }}
-                >
-                  <span
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '3px',
-                      background: catCfg?.color || colors.primary,
-                    }}
-                  />
-                  {t(`quests.categories.${quest.category}`)}
-                </span>
-              )}
-
-              {/* Difficulty badge */}
-              {quest.difficulty && (
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: `${spacing.xs}px`,
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                    background: DIFFICULTY_CONFIG[quest.difficulty].color,
-                    color: '#FFFFFF',
-                    padding: `${spacing.xs}px ${spacing.sm}px`,
-                    borderRadius: borderRadius.sm,
-                  }}
-                >
-                  {DIFFICULTY_CONFIG[quest.difficulty].emoji}{' '}
-                  {t(`quests.difficulties.${quest.difficulty}`)}
-                </span>
-              )}
-            </div>
-
-            {/* Rewards */}
-            <div
-              style={{
-                display: 'flex',
-                gap: `${spacing.md}px`,
-                fontSize: '12px',
-                color: colors.textTertiary,
-              }}
-            >
-              <span>🏆 {quest.reward_points}</span>
-              <span>💰 {quest.reward_coins}</span>
-              <span>⭐ {quest.reward_experience} XP</span>
-            </div>
-          </div>
-        </div>
-      </Card>
-    );
-  };
-
-  const activeFiltersCount =
-    (selectedCategory ? 1 : 0) + (selectedDifficulty ? 1 : 0) + (searchQuery.trim() ? 1 : 0);
+  const activeFiltersCount = (filters.category_id ? 1 : 0) + (filters.difficulty ? 1 : 0);
 
   return (
     <Layout>
-      <div style={{ padding: `${spacing.lg}px` }}>
-        {/* Header */}
-        <h1 style={{ ...typography.h1, marginBottom: `${spacing.md}px` }}>
-          {t('quests.title')} 🎯
-        </h1>
-
-        {/* Search & Filters */}
+      <div style={{ paddingBottom: `${spacing.xxl}px` }}>
+        {/* Поиск */}
         <div
           style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr auto',
-            gap: `${spacing.sm}px`,
-            alignItems: 'center',
-            marginBottom: `${spacing.md}px`,
+            padding: `${spacing.lg}px`,
+            display: 'flex',
+            gap: `${spacing.md}px`,
+            position: 'sticky',
+            top: 0,
+            background: colors.background,
+            zIndex: 10,
+            borderBottom: `1px solid ${colors.border}`,
           }}
         >
-          <Input
-            placeholder="Поиск квестов..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.currentTarget.value)}
-          />
-          <Button
-            variant={activeFiltersCount > 0 ? 'primary' : 'outline'}
-            onClick={() => {
-              if (activeFiltersCount > 0) {
-                clearFilters();
-              }
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              alignItems: 'center',
+              gap: `${spacing.md}px`,
+              padding: `${spacing.md}px`,
+              background: colors.surface,
+              borderRadius: '12px',
             }}
           >
-            {activeFiltersCount > 0 ? `Сбросить (${activeFiltersCount})` : 'Фильтры'}
-          </Button>
+            <MagnifyingGlass size={20} color={colors.textSecondary} />
+            <input
+              type="text"
+              placeholder="Поиск квестов..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSearch();
+              }}
+              style={{
+                flex: 1,
+                border: 'none',
+                outline: 'none',
+                background: 'transparent',
+                color: colors.text,
+                fontSize: '15px',
+                fontFamily: 'inherit',
+              }}
+            />
+            {searchQuery && (
+              <X
+                size={20}
+                color={colors.textSecondary}
+                style={{ cursor: 'pointer' }}
+                onClick={() => {
+                  setSearchQuery('');
+                  setFilters({ ...filters, search: undefined });
+                }}
+              />
+            )}
+          </div>
+
+          <div
+            onClick={() => {
+              hapticFeedback.impact('light');
+              setShowFilters(!showFilters);
+            }}
+            style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '12px',
+              background: showFilters ? colors.primary : colors.surface,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              position: 'relative',
+            }}
+          >
+            <Faders
+              size={20}
+              color={showFilters ? '#FFFFFF' : colors.text}
+              weight="bold"
+            />
+            {activeFiltersCount > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '-4px',
+                  right: '-4px',
+                  width: '18px',
+                  height: '18px',
+                  borderRadius: '9px',
+                  background: colors.error,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  color: '#FFFFFF',
+                }}
+              >
+                {activeFiltersCount}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Category filters */}
-        {categories.length > 0 && (
-          <div style={{ marginBottom: `${spacing.sm}px` }}>
-            <p style={{ fontSize: '12px', fontWeight: 600, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: `${spacing.sm}px` }}>
-              Категория
-            </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: `${spacing.sm}px` }}>
-              <CategoryChip
-                id="all"
-                active={!selectedCategory}
-                onClick={() => setSelectedCategory(null)}
-              />
-              {categories.map((id) => (
-                <CategoryChip
-                  key={id}
-                  id={id}
-                  active={selectedCategory === id}
-                  onClick={() => setSelectedCategory(selectedCategory === id ? null : id)}
-                />
-              ))}
+        {/* Панель фильтров */}
+        {showFilters && (
+          <div
+            style={{
+              padding: `${spacing.lg}px`,
+              background: colors.surface,
+              borderBottom: `1px solid ${colors.border}`,
+            }}
+          >
+            {/* Категории */}
+            {categories.length > 0 && (
+              <div style={{ marginBottom: `${spacing.md}px` }}>
+                <label
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    color: colors.textSecondary,
+                    display: 'block',
+                    marginBottom: `${spacing.sm}px`,
+                  }}
+                >
+                  Категория
+                </label>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: `${spacing.sm}px`,
+                  }}
+                >
+                  {categories.map((category) => {
+                    const isActive = filters.category_id === category.id;
+                    return (
+                      <div
+                        key={category.id}
+                        onClick={() => toggleCategory(category.id)}
+                        style={{
+                          padding: `${spacing.sm}px ${spacing.md}px`,
+                          borderRadius: '999px',
+                          border: `2px solid ${isActive ? category.color || colors.primary : colors.border}`,
+                          background: isActive ? category.color || colors.primary : colors.background,
+                          color: isActive ? '#FFFFFF' : colors.text,
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        {category.name}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Сложность */}
+            <div style={{ marginBottom: `${spacing.md}px` }}>
+              <label
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  color: colors.textSecondary,
+                  display: 'block',
+                  marginBottom: `${spacing.sm}px`,
+                }}
+              >
+                Сложность
+              </label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: `${spacing.sm}px` }}>
+                {Object.entries(DIFFICULTY_LEVELS).map(([key, config]) => {
+                  const isActive = filters.difficulty === key;
+                  return (
+                    <div
+                      key={key}
+                      onClick={() => toggleDifficulty(key as QuestDifficulty)}
+                      style={{
+                        padding: `${spacing.sm}px ${spacing.md}px`,
+                        borderRadius: '999px',
+                        border: `2px solid ${isActive ? config.color : colors.border}`,
+                        background: isActive ? config.color : colors.background,
+                        color: isActive ? '#FFFFFF' : colors.text,
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      {config.label}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
+
+            {/* Сброс */}
+            {activeFiltersCount > 0 && (
+              <div style={{ textAlign: 'center' }}>
+                <span
+                  onClick={clearFilters}
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    color: colors.error,
+                    cursor: 'pointer',
+                    padding: `${spacing.sm}px 0`,
+                    display: 'inline-block',
+                  }}
+                >
+                  Сбросить фильтры
+                </span>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Difficulty filters */}
-        <div style={{ marginBottom: `${spacing.lg}px` }}>
-          <p style={{ fontSize: '12px', fontWeight: 600, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: `${spacing.sm}px` }}>
-            Сложность
-          </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: `${spacing.sm}px` }}>
-            <DifficultyChip
-              id="easy"
-              active={selectedDifficulty === 'easy'}
-              onClick={() =>
-                setSelectedDifficulty(selectedDifficulty === 'easy' ? null : 'easy')
-              }
-            />
-            <DifficultyChip
-              id="medium"
-              active={selectedDifficulty === 'medium'}
-              onClick={() =>
-                setSelectedDifficulty(selectedDifficulty === 'medium' ? null : 'medium')
-              }
-            />
-            <DifficultyChip
-              id="hard"
-              active={selectedDifficulty === 'hard'}
-              onClick={() =>
-                setSelectedDifficulty(selectedDifficulty === 'hard' ? null : 'hard')
-              }
-            />
-            <DifficultyChip
-              id="expert"
-              active={selectedDifficulty === 'expert'}
-              onClick={() =>
-                setSelectedDifficulty(selectedDifficulty === 'expert' ? null : 'expert')
-              }
-            />
-          </div>
-        </div>
+        {/* Список квестов */}
+        <div style={{ padding: `${spacing.lg}px` }}>
+          {isLoading ? (
+            <div style={{ textAlign: 'center', padding: `${spacing.xxl}px 0` }}>
+              <div
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  border: `3px solid ${colors.surfaceAlt}`,
+                  borderTopColor: colors.primary,
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite',
+                  margin: '0 auto',
+                }}
+              />
+            </div>
+          ) : quests.length > 0 ? (
+            quests.map((quest, index) => (
+              <div
+                key={quest.id}
+                style={{
+                  marginBottom: `${spacing.md}px`,
+                  opacity: 0,
+                  animation: `fadeInUp 0.5s ease forwards ${index * 50}ms`,
+                }}
+              >
+                <Card
+                  variant="glass"
+                  onPress={() => {
+                    hapticFeedback.impact('light');
+                    navigate(`${ROUTES.quests}/${quest.id}`);
+                  }}
+                  style={{ overflow: 'hidden' }}
+                >
+                  {/* Цветной акцент */}
+                  <div
+                    style={{
+                      height: '4px',
+                      background: quest.category?.color || colors.primary,
+                      marginBottom: `${spacing.md}px`,
+                    }}
+                  />
 
-        {/* List */}
-        {isLoading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.md}px` }}>
-            {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} height="140px" />
-            ))}
-          </div>
-        ) : filteredQuests.length === 0 ? (
-          <Card padding="lg">
-            <div style={{ textAlign: 'center', padding: `${spacing.xl}px` }}>
-              <p style={{ fontSize: '48px', marginBottom: `${spacing.md}px` }}>🔍</p>
-              <p style={{ color: colors.textSecondary }}>
-                {t('common.noData')}
+                  <div style={{ padding: `0 ${spacing.md}px ${spacing.md}px` }}>
+                    {/* Заголовок */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: `${spacing.sm}px`,
+                      }}
+                    >
+                      <h3
+                        style={{
+                          flex: 1,
+                          fontSize: '18px',
+                          fontWeight: 700,
+                          color: colors.text,
+                          letterSpacing: '-0.3px',
+                          margin: 0,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {quest.title}
+                      </h3>
+                      <ArrowRight size={20} color={colors.textLight} />
+                    </div>
+
+                    {/* Описание */}
+                    {quest.description && (
+                      <p
+                        style={{
+                          fontSize: '14px',
+                          lineHeight: '20px',
+                          color: colors.textSecondary,
+                          marginBottom: `${spacing.md}px`,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                        }}
+                      >
+                        {quest.description}
+                      </p>
+                    )}
+
+                    {/* Мета */}
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: `${spacing.sm}px`,
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      {quest.category && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div
+                            style={{
+                              width: '6px',
+                              height: '6px',
+                              borderRadius: '3px',
+                              background: quest.category.color || colors.primary,
+                            }}
+                          />
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.5px',
+                              color: quest.category.color || colors.primary,
+                            }}
+                          >
+                            {quest.category.name}
+                          </span>
+                        </div>
+                      )}
+
+                      {quest.difficulty && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Lightning
+                            size={12}
+                            color={DIFFICULTY_LEVELS[quest.difficulty].color}
+                            weight="fill"
+                          />
+                          <span
+                            style={{
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.5px',
+                              color: DIFFICULTY_LEVELS[quest.difficulty].color,
+                            }}
+                          >
+                            {DIFFICULTY_LEVELS[quest.difficulty].label}
+                          </span>
+                        </div>
+                      )}
+
+                      <div style={{ flex: 1 }} />
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Star size={14} color={colors.warning} weight="fill" />
+                        <span
+                          style={{
+                            fontSize: '13px',
+                            fontWeight: 700,
+                            color: colors.textSecondary,
+                          }}
+                        >
+                          {quest.points_reward || 0}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Дополнительно */}
+                    {(quest.estimated_duration || quest.total_distance) && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: `${spacing.md}px`,
+                          marginTop: `${spacing.sm}px`,
+                        }}
+                      >
+                        {quest.estimated_duration && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Clock size={14} color={colors.textSecondary} />
+                            <span
+                              style={{
+                                fontSize: '12px',
+                                color: colors.textSecondary,
+                              }}
+                            >
+                              {quest.estimated_duration}м
+                            </span>
+                          </div>
+                        )}
+                        {quest.total_distance && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <MapPin size={14} color={colors.textSecondary} />
+                            <span
+                              style={{
+                                fontSize: '12px',
+                                color: colors.textSecondary,
+                              }}
+                            >
+                              {(quest.total_distance / 1000).toFixed(1)}км
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              </div>
+            ))
+          ) : (
+            <div style={{ textAlign: 'center', padding: `${spacing.xxl}px` }}>
+              <Target size={64} color={colors.textLight} style={{ margin: '0 auto' }} />
+              <p
+                style={{
+                  fontSize: '18px',
+                  fontWeight: 600,
+                  color: colors.textSecondary,
+                  marginTop: `${spacing.lg}px`,
+                  marginBottom: `${spacing.xs}px`,
+                }}
+              >
+                Квесты не найдены
+              </p>
+              <p style={{ fontSize: '14px', color: colors.textLight }}>
+                Попробуйте изменить фильтры
               </p>
             </div>
-          </Card>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.md}px`, marginBottom: `${spacing.xxl}px` }}>
-            {filteredQuests.map((quest) => (
-              <QuestCard key={quest.id} quest={quest} />
-            ))}
-          </div>
-        )}
+          )}
+        </div>
       </div>
+
+      <style>
+        {`
+          @keyframes fadeInUp {
+            from {
+              opacity: 0;
+              transform: translateY(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}
+      </style>
     </Layout>
   );
 };

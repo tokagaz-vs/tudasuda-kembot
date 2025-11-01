@@ -1,140 +1,162 @@
 import React from 'react';
 import { useTheme } from '@/hooks/useTheme';
-import clsx from 'clsx';
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
-  size?: 'sm' | 'md' | 'lg';
+interface ButtonProps {
+  title: string;
+  onClick: () => void;
+  variant?: 'primary' | 'secondary' | 'glass' | 'outline' | 'ghost' | 'danger';
+  size?: 'small' | 'medium' | 'large';
+  loading?: boolean;
+  disabled?: boolean;
   fullWidth?: boolean;
-  isLoading?: boolean;
-  leftIcon?: React.ReactNode;
-  rightIcon?: React.ReactNode;
-  children: React.ReactNode;
+  icon?: React.ReactNode;
+  iconPosition?: 'left' | 'right';
+  style?: React.CSSProperties;
 }
 
 export const Button: React.FC<ButtonProps> = ({
+  title,
+  onClick,
   variant = 'primary',
-  size = 'md',
+  size = 'medium',
+  loading = false,
+  disabled = false,
   fullWidth = false,
-  isLoading = false,
-  leftIcon,
-  rightIcon,
-  children,
-  className,
-  disabled,
-  ...props
+  icon,
+  iconPosition = 'left',
+  style,
 }) => {
-  const { colors, spacing, borderRadius, typography, shadows, animation } = useTheme();
+  const { colors, gradients, spacing } = useTheme();
 
-  const baseStyles: React.CSSProperties = {
-    display: 'inline-flex',
+  const getHeight = () => {
+    switch (size) {
+      case 'small':
+        return 36;
+      case 'large':
+        return 56;
+      default:
+        return 48;
+    }
+  };
+
+  const getFontSize = () => {
+    switch (size) {
+      case 'small':
+        return 14;
+      case 'large':
+        return 18;
+      default:
+        return 16;
+    }
+  };
+
+  const getBackground = () => {
+    switch (variant) {
+      case 'primary':
+        return `linear-gradient(135deg, ${gradients.brand.colors[0]}, ${gradients.brand.colors[1]})`;
+      case 'secondary':
+        return `linear-gradient(135deg, ${gradients.accent.colors[0]}, ${gradients.accent.colors[1]})`;
+      case 'glass':
+        return colors.glass;
+      case 'outline':
+        return 'transparent';
+      case 'ghost':
+        return 'transparent';
+      case 'danger':
+        return colors.error;
+      default:
+        return colors.primary;
+    }
+  };
+
+  const getTextColor = () => {
+    switch (variant) {
+      case 'outline':
+      case 'ghost':
+        return colors.primary;
+      case 'glass':
+        return colors.text;
+      default:
+        return '#FFFFFF';
+    }
+  };
+
+  const getBorder = () => {
+    if (variant === 'outline') {
+      return `2px solid ${colors.primary}`;
+    }
+    if (variant === 'glass') {
+      return `1px solid ${colors.border}`;
+    }
+    return 'none';
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    height: `${getHeight()}px`,
+    padding: `0 ${spacing.lg}px`,
+    borderRadius: '999px',
+    border: getBorder(),
+    background: getBackground(),
+    color: getTextColor(),
+    fontSize: `${getFontSize()}px`,
+    fontWeight: 600,
+    cursor: disabled || loading ? 'not-allowed' : 'pointer',
+    opacity: disabled || loading ? 0.5 : 1,
+    display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: `${spacing.sm}px`,
-    border: 'none',
-    cursor: disabled || isLoading ? 'not-allowed' : 'pointer',
-    fontWeight: typography.button.fontWeight,
-    fontSize: typography.button.fontSize,
-    lineHeight: typography.button.lineHeight,
-    letterSpacing: typography.button.letterSpacing,
-    transition: `all ${animation.duration.normal} ${animation.easing.standard}`,
-    opacity: disabled || isLoading ? 0.6 : 1,
     width: fullWidth ? '100%' : 'auto',
-    textDecoration: 'none',
-    userSelect: 'none',
-  };
-
-  const sizeStyles: Record<string, React.CSSProperties> = {
-    sm: {
-      padding: `${spacing.sm}px ${spacing.base}px`,
-      borderRadius: borderRadius.sm,
-      fontSize: '14px',
-    },
-    md: {
-      padding: `${spacing.md}px ${spacing.lg}px`,
-      borderRadius: borderRadius.md,
-    },
-    lg: {
-      padding: `${spacing.base}px ${spacing.xl}px`,
-      borderRadius: borderRadius.lg,
-      fontSize: '18px',
-    },
-  };
-
-  const variantStyles: Record<string, React.CSSProperties> = {
-    primary: {
-      background: colors.primary,
-      color: '#FFFFFF',
-      boxShadow: shadows.md,
-    },
-    secondary: {
-      background: colors.secondary,
-      color: '#FFFFFF',
-      boxShadow: shadows.md,
-    },
-    outline: {
-      background: 'transparent',
-      color: colors.primary,
-      border: `2px solid ${colors.primary}`,
-    },
-    ghost: {
-      background: 'transparent',
-      color: colors.text,
-    },
-    danger: {
-      background: colors.error,
-      color: '#FFFFFF',
-      boxShadow: shadows.md,
-    },
-  };
-
-  const hoverStyles: Record<string, string> = {
-    primary: colors.primaryDark,
-    secondary: colors.secondaryDark,
-    outline: colors.stateHover,
-    ghost: colors.stateHover,
-    danger: colors.errorLight,
+    transition: 'all 0.2s ease',
+    boxShadow:
+      variant === 'primary' || variant === 'secondary'
+        ? '0 4px 12px rgba(0,0,0,0.15)'
+        : 'none',
+    backdropFilter: variant === 'glass' ? 'blur(12px)' : 'none',
+    WebkitBackdropFilter: variant === 'glass' ? 'blur(12px)' : 'none',
+    ...style,
   };
 
   return (
     <button
-      style={{
-        ...baseStyles,
-        ...sizeStyles[size],
-        ...variantStyles[variant],
-      }}
-      className={clsx('button', className)}
-      disabled={disabled || isLoading}
+      style={buttonStyle}
+      onClick={onClick}
+      disabled={disabled || loading}
       onMouseEnter={(e) => {
-        if (!disabled && !isLoading && variant !== 'outline' && variant !== 'ghost') {
-          e.currentTarget.style.background = hoverStyles[variant];
+        if (!disabled && !loading) {
+          e.currentTarget.style.transform = 'scale(0.98)';
         }
       }}
       onMouseLeave={(e) => {
-        if (!disabled && !isLoading) {
-          e.currentTarget.style.background =
-            variant === 'outline' || variant === 'ghost'
-              ? 'transparent'
-              : variantStyles[variant].background as string;
-        }
+        e.currentTarget.style.transform = 'scale(1)';
       }}
-      {...props}
     >
-      {isLoading && (
+      {loading ? (
         <div
           style={{
-            width: '16px',
-            height: '16px',
-            border: '2px solid currentColor',
+            width: '20px',
+            height: '20px',
+            border: `3px solid ${variant === 'primary' || variant === 'secondary' ? '#FFFFFF' : colors.primary}`,
             borderTopColor: 'transparent',
             borderRadius: '50%',
-            animation: 'spin 0.6s linear infinite',
+            animation: 'spin 0.8s linear infinite',
           }}
         />
+      ) : (
+        <>
+          {icon && iconPosition === 'left' && icon}
+          <span>{title}</span>
+          {icon && iconPosition === 'right' && icon}
+        </>
       )}
-      {!isLoading && leftIcon && <span>{leftIcon}</span>}
-      <span>{children}</span>
-      {!isLoading && rightIcon && <span>{rightIcon}</span>}
+      <style>
+        {`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}
+      </style>
     </button>
   );
 };

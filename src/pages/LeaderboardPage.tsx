@@ -1,18 +1,53 @@
 import React, { useEffect, useState } from 'react';
 import { Layout } from '@/components/layout';
-import { Card, Avatar, Skeleton } from '@/components/ui';
+import { Card, Avatar } from '@/components/ui';
 import { useTheme } from '@/hooks/useTheme';
-import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/store/authStore';
-import { leaderboardService } from '@/services/leaderboard.service';
-import { LeaderboardEntry } from '@/types';
+import { supabase } from '@/services/supabase';
+import { Star, Trophy } from '@phosphor-icons/react';
+
+
+interface LeaderboardUser {
+  id: string;
+  telegram_id: number;
+  username?: string;
+  first_name: string;
+  last_name?: string;
+  photo_url?: string;
+  points: number;
+  rank: number;
+}
+
+const getRankIcon = (rank: number) => {
+  switch (rank) {
+    case 1:
+      return '🥇';
+    case 2:
+      return '🥈';
+    case 3:
+      return '🥉';
+    default:
+      return null;
+  }
+};
+
+const getRankColor = (rank: number) => {
+  switch (rank) {
+    case 1:
+      return '#FFD700';
+    case 2:
+      return '#C0C0C0';
+    case 3:
+      return '#CD7F32';
+    default:
+      return '';
+  }
+};
 
 export const LeaderboardPage: React.FC = () => {
-  const { colors, spacing, typography, gradients, borderRadius } = useTheme();
-  const { t } = useTranslation();
+  const { colors, spacing, gradients } = useTheme();
   const { user } = useAuthStore();
-
-  const [players, setPlayers] = useState<LeaderboardEntry[]>([]);
+  const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [userRank, setUserRank] = useState<number | null>(null);
 
@@ -21,63 +56,97 @@ export const LeaderboardPage: React.FC = () => {
   }, []);
 
   const loadLeaderboard = async () => {
-    setIsLoading(true);
-    const data = await leaderboardService.getTopPlayers(100);
-    setPlayers(data);
-    
-    if (user) {
-      const rank = data.findIndex((p) => p.telegram_id === user.telegram_id) + 1;
-      setUserRank(rank || null);
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .order('points', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      if (data) {
+        const rankedData: LeaderboardUser[] = data.map((profile: any, index: number) => ({
+          ...profile,
+          rank: index + 1,
+        }));
+
+        setLeaderboard(rankedData);
+
+        if (user) {
+          const userIndex = rankedData.findIndex((p) => p.telegram_id === user.telegram_id);
+          setUserRank(userIndex !== -1 ? userIndex + 1 : null);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading leaderboard:', error);
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
 
-  const getMedalEmoji = (rank: number) => {
-    if (rank === 1) return '🥇';
-    if (rank === 2) return '🥈';
-    if (rank === 3) return '🥉';
-    return null;
-  };
-
-  const getRankColor = (rank: number) => {
-    if (rank === 1) return '#FFD700';
-    if (rank === 2) return '#C0C0C0';
-    if (rank === 3) return '#CD7F32';
-    return colors.border;
-  };
-
-  const TopThree = () => {
-    const top3 = players.slice(0, 3);
+  const TopThreePodium = () => {
+    const top3 = leaderboard.slice(0, 3);
     if (top3.length === 0) return null;
 
     const podiumOrder = [top3[1], top3[0], top3[2]].filter(Boolean);
-    const heights = ['120px', '160px', '100px'];
+    const heights = [120, 160, 100];
 
     return (
-      <div style={{ background: colors.surface, padding: `${spacing.xl}px ${spacing.lg}px`, marginBottom: `${spacing.lg}px` }}>
-        <h2 style={{ fontSize: '24px', fontWeight: 700, textAlign: 'center', marginBottom: `${spacing.xl}px` }}>
+      <div
+        style={{
+          background: colors.surface,
+          padding: `${spacing.xl}px ${spacing.lg}px`,
+          marginBottom: `${spacing.lg}px`,
+        }}
+      >
+        <h2
+          style={{
+            fontSize: '24px',
+            fontWeight: 700,
+            color: colors.text,
+            textAlign: 'center',
+            marginBottom: `${spacing.xl}px`,
+          }}
+        >
           Топ игроков 🏆
         </h2>
 
-        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: `${spacing.md}px` }}>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'flex-end',
+            gap: `${spacing.md}px`,
+          }}
+        >
           {podiumOrder.map((player, index) => {
             if (!player) return null;
 
             const actualRank = player.rank;
             const height = heights[index];
-            const rankColor = getRankColor(actualRank);
 
             return (
-              <div key={player.id} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <div
+                key={player.id}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                }}
+              >
                 {/* Аватар */}
                 <div style={{ position: 'relative', marginBottom: `${spacing.sm}px` }}>
                   <Avatar
                     src={player.photo_url}
                     alt={player.first_name}
                     size="lg"
-                    style={{ border: `3px solid ${rankColor}` }}
+                    fallback={player.first_name?.charAt(0)}
+                    showBorder
+                    borderColor={getRankColor(actualRank)}
                   />
+                  {/* Бейдж ранга */}
                   <div
                     style={{
                       position: 'absolute',
@@ -85,8 +154,8 @@ export const LeaderboardPage: React.FC = () => {
                       right: '-5px',
                       width: '30px',
                       height: '30px',
-                      borderRadius: '50%',
-                      background: rankColor,
+                      borderRadius: '15px',
+                      background: getRankColor(actualRank),
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -94,18 +163,37 @@ export const LeaderboardPage: React.FC = () => {
                       fontSize: '16px',
                     }}
                   >
-                    {getMedalEmoji(actualRank)}
+                    {getRankIcon(actualRank)}
                   </div>
                 </div>
 
                 {/* Имя */}
-                <p style={{ fontSize: '14px', fontWeight: 600, marginBottom: `${spacing.xs}px`, textAlign: 'center' }}>
-                  {player.first_name}
-                </p>
+                <span
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    color: colors.text,
+                    textAlign: 'center',
+                    marginBottom: '4px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    maxWidth: '100%',
+                  }}
+                >
+                  {player.first_name} {player.last_name || ''}
+                </span>
 
                 {/* Очки */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.xs}px`, marginBottom: `${spacing.sm}px` }}>
-                  <span style={{ fontSize: '14px' }}>⭐</span>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    marginBottom: `${spacing.sm}px`,
+                  }}
+                >
+                  <Star size={14} color={colors.warning} weight="fill" />
                   <span style={{ fontSize: '13px', fontWeight: 700, color: colors.textSecondary }}>
                     {player.points}
                   </span>
@@ -115,10 +203,10 @@ export const LeaderboardPage: React.FC = () => {
                 <div
                   style={{
                     width: '100%',
-                    height,
-                    background: `linear-gradient(to bottom, ${rankColor}, ${rankColor}80)`,
-                    borderTopLeftRadius: borderRadius.md,
-                    borderTopRightRadius: borderRadius.md,
+                    height: `${height}px`,
+                    borderTopLeftRadius: '12px',
+                    borderTopRightRadius: '12px',
+                    background: `linear-gradient(180deg, ${getRankColor(actualRank)}, ${getRankColor(actualRank)}80)`,
                     display: 'flex',
                     alignItems: 'flex-start',
                     justifyContent: 'center',
@@ -137,123 +225,230 @@ export const LeaderboardPage: React.FC = () => {
     );
   };
 
-  const UserRankCard = () => {
-    if (!user || !userRank) return null;
-
-    return (
-      <div
-        style={{
-          background: gradients.brand,
-          margin: `0 ${spacing.lg}px ${spacing.lg}px`,
-          padding: `${spacing.lg}px`,
-          borderRadius: borderRadius.lg,
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: '#FFFFFF' }}>
-          <div>
-            <p style={{ fontSize: '13px', opacity: 0.9, marginBottom: `${spacing.xs}px` }}>
-              Ваша позиция
-            </p>
-            <p style={{ fontSize: '28px', fontWeight: 700 }}>#{userRank}</p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.xs}px` }}>
-            <span style={{ fontSize: '20px' }}>⭐</span>
-            <span style={{ fontSize: '16px', fontWeight: 700 }}>{user.points} pts</span>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
     <Layout>
-      <div>
-        {/* Топ 3 */}
-        {!isLoading && <TopThree />}
+      <div style={{ paddingBottom: `${spacing.xxl}px` }}>
+        {isLoading ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minHeight: '50vh',
+            }}
+          >
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                border: `3px solid ${colors.surfaceAlt}`,
+                borderTopColor: colors.primary,
+                borderRadius: '50%',
+                animation: 'spin 0.8s linear infinite',
+              }}
+            />
+          </div>
+        ) : (
+          <>
+            {/* Топ-3 подиум */}
+            <TopThreePodium />
 
-        {/* Позиция пользователя */}
-        <UserRankCard />
-
-        {/* Остальные игроки */}
-        <div style={{ padding: `0 ${spacing.lg}px` }}>
-          {players.length > 3 && (
-            <h3 style={{ ...typography.h4, margin: `${spacing.md}px 0` }}>
-              Остальные игроки
-            </h3>
-          )}
-
-          {isLoading ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.sm}px` }}>
-              {[1, 2, 3, 4, 5].map((i) => (
-                <Skeleton key={i} height="72px" />
-              ))}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.sm}px`, marginBottom: `${spacing.xxl}px` }}>
-              {players.slice(3).map((player) => {
-                const isCurrentUser = user?.telegram_id === player.telegram_id;
-
-                return (
-                  <Card
-                    key={player.id}
+            {/* Карточка позиции пользователя */}
+            {user && userRank && (
+              <div style={{ padding: `0 ${spacing.lg}px ${spacing.lg}px` }}>
+                <Card
+                  variant="gradient"
+                  gradient={gradients.brand.colors}
+                  style={{ padding: `${spacing.lg}px` }}
+                >
+                  <div
                     style={{
-                      borderWidth: isCurrentUser ? '2px' : '0',
-                      borderColor: isCurrentUser ? colors.primary : 'transparent',
-                      borderStyle: 'solid',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.md}px` }}>
-                      {/* Ранг */}
-                      <div style={{ width: '40px', textAlign: 'center' }}>
-                        <span style={{ fontSize: '16px', fontWeight: 700, color: colors.textSecondary }}>
-                          #{player.rank}
-                        </span>
-                      </div>
-
-                      {/* Аватар */}
-                      <Avatar
-                        src={player.photo_url}
-                        alt={player.first_name}
-                        size="md"
-                      />
-
-                      {/* Инфо */}
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: '16px', fontWeight: 600, color: isCurrentUser ? colors.primary : colors.text }}>
-                          {player.first_name} {isCurrentUser && '(Вы)'}
-                        </p>
-                        <p style={{ fontSize: '13px', color: colors.textSecondary }}>
-                          {player.username ? `@${player.username}` : `Level ${player.level}`}
-                        </p>
-                      </div>
-
-                      {/* Очки */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.xs}px` }}>
-                        <span>⭐</span>
-                        <span style={{ fontSize: '16px', fontWeight: 700 }}>{player.points}</span>
-                      </div>
+                    <div>
+                      <p
+                        style={{
+                          fontSize: '13px',
+                          color: 'rgba(255,255,255,0.9)',
+                          marginBottom: '4px',
+                        }}
+                      >
+                        Ваша позиция
+                      </p>
+                      <h3
+                        style={{
+                          fontSize: '28px',
+                          fontWeight: 700,
+                          color: '#FFFFFF',
+                          margin: 0,
+                        }}
+                      >
+                        #{userRank}
+                      </h3>
                     </div>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Star size={20} color={colors.warning} weight="fill" />
+                      <span style={{ fontSize: '16px', fontWeight: 700, color: '#FFFFFF' }}>
+                        {user.points} очков
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            )}
 
-          {!isLoading && players.length === 0 && (
-            <Card>
-              <div style={{ textAlign: 'center', padding: `${spacing.xxl}px` }}>
-                <div style={{ fontSize: '64px', marginBottom: `${spacing.md}px` }}>🏆</div>
-                <p style={{ color: colors.textSecondary, marginBottom: `${spacing.xs}px` }}>
+            {/* Список остальных */}
+            {leaderboard.length > 3 && (
+              <div style={{ padding: `0 ${spacing.lg}px` }}>
+                <h3
+                  style={{
+                    fontSize: '16px',
+                    fontWeight: 600,
+                    color: colors.textSecondary,
+                    marginBottom: `${spacing.md}px`,
+                  }}
+                >
+                  Остальные игроки
+                </h3>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.sm}px` }}>
+                  {leaderboard.slice(3).map((item, index) => {
+                    const isCurrentUser = user?.telegram_id === item.telegram_id;
+
+                    return (
+                      <Card
+                        key={item.id}
+                        variant="glass"
+                        style={{
+                          border: isCurrentUser ? `2px solid ${colors.primary}` : undefined,
+                          background: isCurrentUser ? colors.primary + '15' : undefined,
+                          opacity: 0,
+                          animation: `fadeInUp 0.3s ease forwards ${index * 30}ms`,
+                        }}
+                      >
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: `${spacing.md}px`,
+                          }}
+                        >
+                          {/* Ранг */}
+                          <div
+                            style={{
+                              width: '40px',
+                              textAlign: 'center',
+                            }}
+                          >
+                            {item.rank <= 3 ? (
+                              <span style={{ fontSize: '24px' }}>{getRankIcon(item.rank)}</span>
+                            ) : (
+                              <span
+                                style={{
+                                  fontSize: '16px',
+                                  fontWeight: 700,
+                                  color: colors.textSecondary,
+                                }}
+                              >
+                                #{item.rank}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Аватар */}
+                          <Avatar
+                            src={item.photo_url}
+                            alt={item.first_name}
+                            size="md"
+                            fallback={item.first_name?.charAt(0)}
+                          />
+
+                          {/* Инфо */}
+                          <div style={{ flex: 1 }}>
+                            <h4
+                              style={{
+                                fontSize: '16px',
+                                fontWeight: 600,
+                                color: isCurrentUser ? colors.primary : colors.text,
+                                marginBottom: '2px',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {item.first_name} {item.last_name || ''}
+                              {isCurrentUser && ' (Вы)'}
+                            </h4>
+                            <p style={{ fontSize: '13px', color: colors.textSecondary, margin: 0 }}>
+                              @{item.username || 'user'}
+                            </p>
+                          </div>
+
+                          {/* Очки */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Star size={16} color={colors.warning} weight="fill" />
+                            <span style={{ fontSize: '16px', fontWeight: 700, color: colors.text }}>
+                              {item.points}
+                            </span>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {leaderboard.length === 0 && (
+              <div
+                style={{
+                  textAlign: 'center',
+                  padding: `${spacing.xxl * 3}px ${spacing.xl}px`,
+                }}
+              >
+                <Trophy size={64} color={colors.textLight} style={{ margin: '0 auto' }} />
+                <h3
+                  style={{
+                    fontSize: '18px',
+                    fontWeight: 600,
+                    color: colors.textSecondary,
+                    marginTop: `${spacing.lg}px`,
+                    marginBottom: `${spacing.xs}px`,
+                  }}
+                >
                   Пока нет участников
-                </p>
-                <p style={{ fontSize: '14px', color: colors.textLight }}>
+                </h3>
+                <p style={{ fontSize: '14px', color: colors.textLight, lineHeight: '20px' }}>
                   Начните проходить квесты и станьте первым в рейтинге!
                 </p>
               </div>
-            </Card>
-          )}
-        </div>
+            )}
+          </>
+        )}
       </div>
+
+      <style>
+        {`
+          @keyframes fadeInUp {
+            from {
+              opacity: 0;
+              transform: translateY(10px);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}
+      </style>
     </Layout>
   );
 };

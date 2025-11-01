@@ -4,8 +4,9 @@ import { env } from '@/config/env';
 // Создание клиента Supabase
 export const supabase = createClient(env.supabase.url, env.supabase.anonKey, {
   auth: {
-    persistSession: true,
-    autoRefreshToken: true,
+    persistSession: false, // Для Telegram Mini App не нужна сессия
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
   },
   db: {
     schema: 'public',
@@ -13,6 +14,7 @@ export const supabase = createClient(env.supabase.url, env.supabase.anonKey, {
   global: {
     headers: {
       'x-application-name': 'tudasuda-tg-app',
+      'apikey': env.supabase.anonKey, // Важно для RLS
     },
   },
 });

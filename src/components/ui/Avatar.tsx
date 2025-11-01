@@ -1,68 +1,105 @@
 import React from 'react';
+import { User, Crown } from '@phosphor-icons/react';
 import { useTheme } from '@/hooks/useTheme';
-import clsx from 'clsx';
 
 interface AvatarProps {
-  src?: string;
+  src?: string | null;
   alt?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   fallback?: string;
-  className?: string;
-  style?: React.CSSProperties;
+  variant?: 'default' | 'gradient' | 'premium';
+  showBorder?: boolean;
+  borderColor?: string;
 }
+
+const SIZES = {
+  sm: 32,
+  md: 48,
+  lg: 64,
+  xl: 100,
+};
 
 export const Avatar: React.FC<AvatarProps> = ({
   src,
   alt = 'Avatar',
   size = 'md',
   fallback,
-  className,
-  style,
+  variant = 'default',
+  showBorder = false,
+  borderColor,
 }) => {
-  const { colors, borderRadius, shadows } = useTheme();
+  const { colors, gradients } = useTheme();
+  const sizeValue = SIZES[size];
 
-  const sizeMap = {
-    sm: '32px',
-    md: '48px',
-    lg: '64px',
-    xl: '96px',
+  const getBackground = () => {
+    if (variant === 'gradient') {
+      return `linear-gradient(135deg, ${gradients.brand.colors[0]}, ${gradients.brand.colors[1]})`;
+    }
+    if (variant === 'premium') {
+      return 'linear-gradient(135deg, #FFD700, #FFA500)';
+    }
+    return colors.surfaceAlt;
   };
 
-  const styles: React.CSSProperties = {
-    width: sizeMap[size],
-    height: sizeMap[size],
-    borderRadius: borderRadius.round,
-    overflow: 'hidden',
+  const containerStyle: React.CSSProperties = {
+    width: `${sizeValue}px`,
+    height: `${sizeValue}px`,
+    borderRadius: '50%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    background: colors.surfaceAlt,
-    border: `2px solid ${colors.border}`,
-    boxShadow: shadows.sm,
-    fontSize: size === 'sm' ? '14px' : size === 'md' ? '18px' : size === 'lg' ? '24px' : '32px',
-    fontWeight: 600,
-    color: colors.textSecondary,
+    overflow: 'hidden',
+    position: 'relative',
+    background: src ? 'transparent' : getBackground(),
+    border: showBorder ? `3px solid ${borderColor || colors.border}` : 'none',
     flexShrink: 0,
-    ...style,
   };
 
-  if (src) {
-    return (
-      <img
-        src={src}
-        alt={alt}
-        style={styles}
-        className={clsx('avatar', className)}
-        onError={(e) => {
-          e.currentTarget.style.display = 'none';
-        }}
-      />
-    );
-  }
-
   return (
-    <div style={styles} className={clsx('avatar', className)}>
-      {fallback || alt.charAt(0).toUpperCase()}
+    <div style={containerStyle}>
+      {src ? (
+        <img
+          src={src}
+          alt={alt}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+          }}
+        />
+      ) : fallback ? (
+        <span
+          style={{
+            fontSize: `${sizeValue * 0.4}px`,
+            fontWeight: 600,
+            color: '#FFFFFF',
+          }}
+        >
+          {fallback}
+        </span>
+      ) : (
+        <User size={sizeValue * 0.5} color={colors.textLight} weight="bold" />
+      )}
+
+      {variant === 'premium' && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            right: 0,
+            width: `${sizeValue * 0.3}px`,
+            height: `${sizeValue * 0.3}px`,
+            borderRadius: '50%',
+            background: colors.accent,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: '2px solid #FFFFFF',
+          }}
+        >
+          <Crown size={sizeValue * 0.15} color="#FFFFFF" weight="fill" />
+        </div>
+      )}
     </div>
   );
 };

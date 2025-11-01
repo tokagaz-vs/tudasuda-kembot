@@ -1,81 +1,107 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '@/hooks/useTheme';
-import { useTranslation } from '@/hooks/useTranslation';
 import { ROUTES } from '@/constants';
-
-interface NavItem {
-  path: string;
-  icon: string;
-  labelKey: string;
-}
+import { 
+  House, 
+  MapTrifold, 
+  Crosshair, 
+  ChartBar, 
+  User 
+} from '@phosphor-icons/react';
 
 export const BottomNavigation: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { colors, spacing, shadows, zIndex } = useTheme();
-  const { t } = useTranslation();
-
-  const navItems: NavItem[] = [
-    { path: ROUTES.home, icon: '🏠', labelKey: 'navigation.home' },
-    { path: ROUTES.quests, icon: '🎯', labelKey: 'navigation.quests' },
-    { path: ROUTES.map, icon: '🗺️', labelKey: 'navigation.map' },
-    { path: ROUTES.leaderboard, icon: '🏆', labelKey: 'navigation.leaderboard' },
-    { path: ROUTES.profile, icon: '👤', labelKey: 'navigation.profile' },
-  ];
-
-  const containerStyle: React.CSSProperties = {
-    position: 'fixed',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    background: colors.surface,
-    borderTop: `1px solid ${colors.border}`,
-    display: 'flex',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    padding: `${spacing.sm}px 0`,
-    boxShadow: shadows.lg,
-    zIndex: zIndex.sticky,
+  const theme = useTheme();
+  
+  // Проверка на случай если theme undefined
+  const colors = theme?.colors || {
+    background: '#0F1115',
+    surface: '#151821',
+    primary: '#FF6A00',
+    text: '#F5F7FA',
+    textSecondary: '#B4BDCC',
   };
+  
+  const spacing = theme?.spacing || {
+    xs: 4,
+    sm: 8,
+    md: 12,
+    lg: 20,
+  };
+
+  const tabs = [
+    { path: ROUTES.home, icon: House, label: 'Главная' },
+    { path: ROUTES.map, icon: MapTrifold, label: 'Карта' },
+    { path: ROUTES.quests, icon: Crosshair, label: 'Квесты' },
+    { path: ROUTES.leaderboard, icon: ChartBar, label: 'Рейтинг' },
+    { path: ROUTES.profile, icon: User, label: 'Профиль' },
+  ];
 
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <nav style={containerStyle}>
-      {navItems.map((item) => {
-        const active = isActive(item.path);
-        
-        return (
-          <button
-            key={item.path}
-            onClick={() => navigate(item.path)}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: `${spacing.xs}px`,
-              padding: `${spacing.xs}px ${spacing.sm}px`,
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              color: active ? colors.primary : colors.textSecondary,
-              transition: 'all 0.2s ease',
-              minWidth: '60px',
-            }}
-          >
-            <span style={{ fontSize: '24px' }}>{item.icon}</span>
-            <span
+    <div
+      style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        background: colors.surface,
+        borderTop: `1px solid ${colors.surface}`,
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        zIndex: 1000,
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-around',
+          padding: `${spacing.sm}px ${spacing.xs}px`,
+          maxWidth: '600px',
+          margin: '0 auto',
+        }}
+      >
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const active = isActive(tab.path);
+
+          return (
+            <div
+              key={tab.path}
+              onClick={() => navigate(tab.path)}
               style={{
-                fontSize: '11px',
-                fontWeight: active ? 600 : 400,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '4px',
+                padding: `${spacing.xs}px ${spacing.sm}px`,
+                cursor: 'pointer',
+                flex: 1,
+                transition: 'all 0.2s ease',
+                opacity: active ? 1 : 0.6,
               }}
             >
-              {t(item.labelKey)}
-            </span>
-          </button>
-        );
-      })}
-    </nav>
+              <Icon
+                size={24}
+                color={active ? colors.primary : colors.text}
+                weight={active ? 'fill' : 'regular'}
+              />
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: active ? 600 : 400,
+                  color: active ? colors.primary : colors.textSecondary,
+                }}
+              >
+                {tab.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 };

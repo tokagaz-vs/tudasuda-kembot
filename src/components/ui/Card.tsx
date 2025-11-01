@@ -1,59 +1,94 @@
 import React from 'react';
 import { useTheme } from '@/hooks/useTheme';
-import clsx from 'clsx';
 
-interface CardProps {
+type CardVariant = 'default' | 'glass' | 'gradient' | 'outlined';
+
+type CardProps = {
   children: React.ReactNode;
-  className?: string;
-  onClick?: () => void;
-  padding?: 'none' | 'sm' | 'md' | 'lg';
-  hover?: boolean;
   style?: React.CSSProperties;
-}
+  onPress?: () => void;
+  variant?: CardVariant;
+  gradient?: readonly [string, string, ...string[]];
+  elevated?: boolean;
+  padding?: number; // Только number, без string
+  borderRadius?: number;
+};
 
 export const Card: React.FC<CardProps> = ({
   children,
-  className,
-  onClick,
-  padding = 'md',
-  hover = false,
   style,
+  onPress,
+  variant = 'default',
+  gradient,
+  elevated = true,
+  padding,
+  borderRadius,
 }) => {
-  const { colors, spacing, borderRadius, shadows, animation } = useTheme();
+  const { colors, spacing, borderRadius: themeBorderRadius } = useTheme();
 
-  const paddingStyles: Record<string, string> = {
-    none: '0',
-    sm: `${spacing.sm}px`,
-    md: `${spacing.base}px`,
-    lg: `${spacing.lg}px`,
+  const getPadding = () => {
+    if (typeof padding === 'number') return `${padding}px`;
+    return `${spacing.base}px`;
   };
 
-  const baseStyles: React.CSSProperties = {
-    background: colors.surface,
-    borderRadius: borderRadius.lg,
-    padding: paddingStyles[padding],
-    boxShadow: shadows.sm,
-    border: `1px solid ${colors.border}`,
-    transition: `all ${animation.duration.normal} ${animation.easing.standard}`,
-    cursor: onClick ? 'pointer' : 'default',
-    ...style, // Добавляем кастомные стили
+  const getBackground = () => {
+    switch (variant) {
+      case 'glass':
+        return colors.glass;
+      case 'gradient':
+        const grad = gradient || ['#FF6A00', '#FF2D55'];
+        return `linear-gradient(135deg, ${grad[0]}, ${grad[1]})`;
+      case 'outlined':
+        return colors.surface;
+      default:
+        return colors.surface;
+    }
+  };
+
+  const getBorder = () => {
+    if (variant === 'glass' || variant === 'outlined') {
+      return `1px solid ${colors.border}`;
+    }
+    return 'none';
+  };
+
+  const getShadow = () => {
+    if (!elevated) return 'none';
+    switch (variant) {
+      case 'glass':
+        return '0 2px 8px rgba(0,0,0,0.08)';
+      case 'gradient':
+        return '0 4px 12px rgba(0,0,0,0.12)';
+      default:
+        return '0 2px 8px rgba(0,0,0,0.08)';
+    }
+  };
+
+  const cardStyle: React.CSSProperties = {
+    background: getBackground(),
+    border: getBorder(),
+    borderRadius: `${borderRadius ?? themeBorderRadius.lg}px`,
+    padding: getPadding(),
+    boxShadow: getShadow(),
+    backdropFilter: variant === 'glass' ? 'blur(12px)' : 'none',
+    WebkitBackdropFilter: variant === 'glass' ? 'blur(12px)' : 'none',
+    cursor: onPress ? 'pointer' : 'default',
+    transition: 'all 0.2s ease',
+    ...style,
   };
 
   return (
     <div
-      style={baseStyles}
-      className={clsx('card', className)}
-      onClick={onClick}
+      style={cardStyle}
+      onClick={onPress}
       onMouseEnter={(e) => {
-        if (hover) {
-          e.currentTarget.style.transform = 'translateY(-4px)';
-          e.currentTarget.style.boxShadow = shadows.lg;
+        if (onPress) {
+          e.currentTarget.style.transform = 'scale(0.98)';
         }
       }}
       onMouseLeave={(e) => {
-        if (hover) {
-          e.currentTarget.style.transform = 'translateY(0)';
-          e.currentTarget.style.boxShadow = shadows.sm;
+        if (onPress) {
+          e.currentTarget.style.transform = 'scale(1)';
         }
       }}
     >
