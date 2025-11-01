@@ -8,6 +8,7 @@ interface AvatarProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   fallback?: string;
   className?: string;
+  style?: React.CSSProperties;
 }
 
 export const Avatar: React.FC<AvatarProps> = ({
@@ -16,6 +17,7 @@ export const Avatar: React.FC<AvatarProps> = ({
   size = 'md',
   fallback,
   className,
+  style,
 }) => {
   const { colors, borderRadius, shadows } = useTheme();
 
@@ -40,6 +42,8 @@ export const Avatar: React.FC<AvatarProps> = ({
     fontSize: size === 'sm' ? '14px' : size === 'md' ? '18px' : size === 'lg' ? '24px' : '32px',
     fontWeight: 600,
     color: colors.textSecondary,
+    flexShrink: 0,
+    ...style,
   };
 
   if (src) {

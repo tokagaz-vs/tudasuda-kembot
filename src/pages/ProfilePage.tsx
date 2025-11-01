@@ -1,12 +1,12 @@
 import React from 'react';
 import { Layout } from '@/components/layout';
-import { Card, Avatar, Button } from '@/components/ui';
+import { Card, Button, Avatar } from '@/components/ui';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useAuthStore } from '@/store/authStore';
 
 export const ProfilePage: React.FC = () => {
-  const { colors, spacing, typography, gradients } = useTheme();
+  const { colors, spacing, typography, gradients, borderRadius } = useTheme();
   const { t } = useTranslation();
   const { user, logout } = useAuthStore();
 
@@ -25,41 +25,58 @@ export const ProfilePage: React.FC = () => {
     );
   }
 
+  const xpForNextLevel = user.level * 100;
+  const xpPct = Math.min(100, Math.round((user.experience / xpForNextLevel) * 100));
+
   return (
     <Layout>
       <div>
-        {/* Header with gradient background */}
+        {/* Gradient header */}
         <div
           style={{
             background: gradients.brand,
             padding: `${spacing.xxl}px ${spacing.lg}px`,
             textAlign: 'center',
+            position: 'relative',
+            overflow: 'hidden',
           }}
         >
-          <Avatar
-            src={user.photo_url}
-            alt={user.first_name}
-            size="xl"
-            fallback={user.first_name.charAt(0)}
-          />
-          <h1
-            style={{
-              ...typography.h1,
-              marginTop: `${spacing.md}px`,
-              color: '#FFFFFF',
-            }}
-          >
-            {user.first_name} {user.last_name}
-          </h1>
-          {user.username && (
-            <p style={{ color: 'rgba(255,255,255,0.8)', marginTop: `${spacing.xs}px` }}>
-              @{user.username}
-            </p>
-          )}
+          {/* Decorative sparkles */}
+          <span style={{ position: 'absolute', top: '20px', right: '40px', fontSize: '16px', opacity: 0.3 }}>✨</span>
+          <span style={{ position: 'absolute', top: '60px', right: '20px', fontSize: '12px', opacity: 0.2 }}>✨</span>
+          <span style={{ position: 'absolute', bottom: '40px', left: '30px', fontSize: '20px', opacity: 0.15 }}>✨</span>
+
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: `${spacing.sm}px` }}>
+            <Avatar
+              src={user.photo_url}
+              alt={user.first_name}
+              size="xl"
+              fallback={user.first_name?.charAt(0)}
+            />
+            <h1
+              style={{
+                ...typography.h1,
+                marginTop: `${spacing.sm}px`,
+                color: '#FFFFFF',
+              }}
+            >
+              {user.first_name} {user.last_name || ''}
+            </h1>
+            {user.username && (
+              <p style={{ color: 'rgba(255,255,255,0.8)', margin: 0 }}>
+                @{user.username}
+              </p>
+            )}
+            <div style={{ marginTop: `${spacing.sm}px` }}>
+              <Button variant="ghost" size="sm">
+                Редактировать профиль
+              </Button>
+            </div>
+          </div>
         </div>
 
         <div style={{ padding: `${spacing.lg}px` }}>
-          {/* Stats Grid */}
+          {/* Stats grid */}
           <Card padding="lg" style={{ marginBottom: `${spacing.lg}px` }}>
             <h2 style={{ ...typography.h3, marginBottom: `${spacing.md}px` }}>
               {t('profile.statistics')}
@@ -122,7 +139,7 @@ export const ProfilePage: React.FC = () => {
             </div>
           </Card>
 
-          {/* Progress Bar */}
+          {/* XP Progress */}
           <Card padding="lg" style={{ marginBottom: `${spacing.lg}px` }}>
             <div style={{ marginBottom: `${spacing.sm}px` }}>
               <div
@@ -136,7 +153,7 @@ export const ProfilePage: React.FC = () => {
                   {t('profile.stats.experience')}
                 </span>
                 <span style={{ fontSize: '14px', color: colors.textSecondary }}>
-                  {user.experience} / {user.level * 100}
+                  {user.experience} / {xpForNextLevel}
                 </span>
               </div>
               <div
@@ -150,7 +167,7 @@ export const ProfilePage: React.FC = () => {
                 <div
                   style={{
                     height: '100%',
-                    width: `${(user.experience / (user.level * 100)) * 100}%`,
+                    width: `${xpPct}%`,
                     background: gradients.brand,
                     transition: 'width 0.3s ease',
                   }}

@@ -22,7 +22,6 @@ interface UseTelegramReturn {
   close: () => void;
 }
 
-// Mock user для разработки
 const MOCK_USER: TelegramUser = {
   id: 123456789,
   first_name: 'Test',
@@ -38,9 +37,8 @@ export const useTelegram = (): UseTelegramReturn => {
   const [webApp, setWebApp] = useState<TelegramWebApp | null>(null);
 
   useEffect(() => {
-    // Ждем загрузки SDK с retry логикой
     let attempts = 0;
-    const maxAttempts = 100; // 10 секунд
+    const maxAttempts = 100;
     
     const checkTelegram = () => {
       attempts++;
@@ -60,23 +58,10 @@ export const useTelegram = (): UseTelegramReturn => {
         setWebApp(app);
         setIsReady(true);
 
-        // Устанавливаем цвета темы
         if (app.colorScheme === 'dark') {
           document.body.classList.add('dark');
         } else {
           document.body.classList.remove('dark');
-        }
-        
-        // Устанавливаем цвета интерфейса
-        try {
-          if (app.setHeaderColor) {
-            app.setHeaderColor('#0F1115');
-          }
-          if (app.setBackgroundColor) {
-            app.setBackgroundColor('#0F1115');
-          }
-        } catch (error) {
-          console.warn('Failed to set colors:', error);
         }
       } else if (attempts < maxAttempts) {
         console.log(`⏳ Waiting for Telegram WebApp... (${attempts}/${maxAttempts})`);
@@ -88,13 +73,11 @@ export const useTelegram = (): UseTelegramReturn => {
       }
     };
 
-    // Начинаем проверку
     checkTelegram();
   }, []);
 
   const showMainButton = (text: string, onClick: () => void) => {
     if (!webApp) return;
-
     webApp.MainButton.setText(text);
     webApp.MainButton.onClick(onClick);
     webApp.MainButton.show();
@@ -107,7 +90,6 @@ export const useTelegram = (): UseTelegramReturn => {
 
   const showBackButton = (onClick: () => void) => {
     if (!webApp) return;
-
     webApp.BackButton.onClick(onClick);
     webApp.BackButton.show();
   };
@@ -158,7 +140,6 @@ export const useTelegram = (): UseTelegramReturn => {
     webApp?.close();
   };
 
-  // Если нет Telegram WebApp, используем mock для разработки
   const user = webApp?.initDataUnsafe?.user || (import.meta.env.DEV ? MOCK_USER : null);
 
   return {
