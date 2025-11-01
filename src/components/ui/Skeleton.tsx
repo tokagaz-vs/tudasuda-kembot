@@ -20,7 +20,7 @@ export const Skeleton: React.FC<SkeletonProps> = ({
     width: typeof width === 'number' ? `${width}px` : width,
     height: typeof height === 'number' ? `${height}px` : height,
     borderRadius: borderRadius || br.md,
-    background: `linear-gradient(90deg, ${colors.surfaceAlt} 25%, ${colors.stateHover} 50%, ${colors.surfaceAlt} 75%)`,
+    background: `linear-gradient(90deg, ${colors.surfaceAlt} 25%, ${(colors as any).stateHover || colors.glass} 50%, ${colors.surfaceAlt} 75%)`,
     backgroundSize: '200% 100%',
     animation: 'shimmer 1.5s infinite',
   };
