@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import { Layout } from '@/components/layout';
 import { Card, GlassPanel } from '@/components/ui';
 import { useTheme } from '@/hooks/useTheme';
@@ -18,6 +17,8 @@ import {
   Clock, 
   MapPin as MapPinIcon,
   ArrowRight,
+  Target,
+  Lightning,
 } from '@phosphor-icons/react';
 
 // Дефолтные координаты (Кемерово)
@@ -32,6 +33,12 @@ const MapController: React.FC<{ center: [number, number]; zoom: number }> = ({ c
   }, [center, zoom, map]);
   
   return null;
+};
+
+const DIFFICULTY_CONFIG = {
+  easy: { label: 'Легко', color: '#10B981', icon: '🟢' },
+  medium: { label: 'Средне', color: '#F59E0B', icon: '🟡' },
+  hard: { label: 'Сложно', color: '#EF4444', icon: '🔴' },
 };
 
 export const MapPage: React.FC = () => {
@@ -49,6 +56,7 @@ export const MapPage: React.FC = () => {
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number]>(DEFAULT_CENTER);
   const [mapZoom, setMapZoom] = useState(13);
+  const [showCategoryQuests, setShowCategoryQuests] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -83,12 +91,12 @@ export const MapPage: React.FC = () => {
   };
 
   const filterQuests = () => {
-  setFilteredQuests(
-    selectedCategory 
-      ? quests.filter((q) => q.category?.id === selectedCategory) // ИСПРАВЛЕНО
-      : quests
-  );
-};
+    setFilteredQuests(
+      selectedCategory 
+        ? quests.filter((q) => q.category?.id === selectedCategory)
+        : quests
+    );
+  };
 
   const getUserLocation = () => {
     if (navigator.geolocation) {
@@ -111,11 +119,19 @@ export const MapPage: React.FC = () => {
     hapticFeedback.impact('light');
     setSelectedCategory(categoryId);
     setSelectedQuest(null);
+    
+    // Показываем список квестов только если выбрана категория
+    if (categoryId) {
+      setShowCategoryQuests(true);
+    } else {
+      setShowCategoryQuests(false);
+    }
   };
 
   const handleMarkerClick = (quest: Quest) => {
     hapticFeedback.impact('light');
     setSelectedQuest(quest);
+    setShowCategoryQuests(false);
     const points = questPoints.get(quest.id);
     const first = points?.[0];
     if (first) {
@@ -130,6 +146,11 @@ export const MapPage: React.FC = () => {
       setMapCenter(userLocation);
       setMapZoom(15);
     }
+  };
+
+  const handleQuestClick = (quest: Quest) => {
+    hapticFeedback.impact('medium');
+    navigate(`${ROUTES.quests}/${quest.id}`);
   };
 
   const createCustomIcon = (color: string, isSelected: boolean) => {
@@ -156,6 +177,12 @@ export const MapPage: React.FC = () => {
       iconSize: [size, size],
       iconAnchor: [size / 2, size],
     });
+  };
+
+  const getCategoryName = () => {
+    if (!selectedCategory) return '';
+    const category = categories.find(c => c.id === selectedCategory);
+    return category?.name || '';
   };
 
   if (isLoading) {
@@ -193,12 +220,13 @@ export const MapPage: React.FC = () => {
           zoom={13}
           style={{ height: '100%', width: '100%', zIndex: 1 }}
           zoomControl={false}
+          attributionControl={false} // Отключаем атрибуцию
         >
           <MapController center={mapCenter} zoom={mapZoom} />
           
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            // Убрали attribution полностью
           />
 
           {/* Маркеры квестов */}
@@ -410,8 +438,195 @@ export const MapPage: React.FC = () => {
           </div>
         )}
 
+        {/* Панель со списком квестов категории */}
+        {showCategoryQuests && selectedCategory && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              maxHeight: '60vh',
+              zIndex: 1000,
+              animation: 'slideUp 0.3s ease',
+            }}
+          >
+            <GlassPanel padding={0} style={{ borderRadius: '20px 20px 0 0' }}>
+              {/* Заголовок */}
+              <div
+                style={{
+                  padding: `${spacing.lg}px`,
+                  borderBottom: `1px solid ${colors.border}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div>
+                  <h3 style={{ fontSize: '20px', fontWeight: 700, color: colors.text, margin: 0 }}>
+                    {getCategoryName()}
+                  </h3>
+                  <p style={{ fontSize: '13px', color: colors.textSecondary, margin: '4px 0 0' }}>
+                    Найдено квестов: {filteredQuests.length}
+                  </p>
+                </div>
+                <div
+                  onClick={() => {
+                    hapticFeedback.impact('light');
+                    setShowCategoryQuests(false);
+                  }}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '16px',
+                    background: colors.surfaceAlt,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <X size={20} color={colors.textSecondary} />
+                </div>
+              </div>
+
+              {/* Список квестов */}
+              <div
+                style={{
+                  maxHeight: 'calc(60vh - 80px)',
+                  overflowY: 'auto',
+                  padding: `${spacing.md}px`,
+                }}
+              >
+                {filteredQuests.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: `${spacing.xxl}px ${spacing.lg}px` }}>
+                    <Target size={48} color={colors.textLight} style={{ margin: '0 auto 16px' }} />
+                    <p style={{ fontSize: '14px', color: colors.textSecondary }}>
+                      Квестов в этой категории пока нет
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.sm}px` }}>
+                    {filteredQuests.map((quest) => {
+                      const points = questPoints.get(quest.id);
+                      const difficultyInfo = DIFFICULTY_CONFIG[quest.difficulty];
+
+                      return (
+                        <Card
+                          key={quest.id}
+                          variant="glass"
+                          onPress={() => handleQuestClick(quest)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          {/* Цветной акцент */}
+                          <div
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '4px',
+                              height: '100%',
+                              background: quest.category?.color || colors.primary,
+                              borderRadius: '12px 0 0 12px',
+                            }}
+                          />
+
+                          <div style={{ paddingLeft: `${spacing.md}px` }}>
+                            {/* Заголовок */}
+                            <h4
+                              style={{
+                                fontSize: '16px',
+                                fontWeight: 600,
+                                color: colors.text,
+                                marginBottom: `${spacing.xs}px`,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {quest.title}
+                            </h4>
+
+                            {/* Описание */}
+                            {quest.description && (
+                              <p
+                                style={{
+                                  fontSize: '13px',
+                                  lineHeight: '18px',
+                                  color: colors.textSecondary,
+                                  marginBottom: `${spacing.sm}px`,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  display: '-webkit-box',
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: 'vertical',
+                                }}
+                              >
+                                {quest.description}
+                              </p>
+                            )}
+
+                            {/* Метрики */}
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                flexWrap: 'wrap',
+                                gap: `${spacing.md}px`,
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Star size={14} color={colors.warning} weight="fill" />
+                                <span style={{ fontSize: '12px', fontWeight: 600, color: colors.text }}>
+                                  {quest.points_reward || 0}
+                                </span>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <MapPinIcon size={14} color={colors.textSecondary} />
+                                <span style={{ fontSize: '12px', color: colors.textSecondary }}>
+                                  {points?.length || 0} точек
+                                </span>
+                              </div>
+
+                              {quest.estimated_duration && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <Clock size={14} color={colors.textSecondary} />
+                                  <span style={{ fontSize: '12px', color: colors.textSecondary }}>
+                                    {quest.estimated_duration} мин
+                                  </span>
+                                </div>
+                              )}
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Lightning size={14} color={difficultyInfo.color} weight="fill" />
+                                <span
+                                  style={{
+                                    fontSize: '11px',
+                                    fontWeight: 600,
+                                    color: difficultyInfo.color,
+                                  }}
+                                >
+                                  {difficultyInfo.label}
+                                </span>
+                              </div>
+
+                              <div style={{ flex: 1 }} />
+                              <ArrowRight size={18} color={colors.textLight} />
+                            </div>
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </GlassPanel>
+          </div>
+        )}
+
         {/* Карточка выбранного квеста */}
-        {selectedQuest && (
+        {selectedQuest && !showCategoryQuests && (
           <div
             style={{
               position: 'absolute',
@@ -424,11 +639,8 @@ export const MapPage: React.FC = () => {
           >
             <Card
               variant="glass"
-              onPress={() => {
-                hapticFeedback.impact('light');
-                navigate(`${ROUTES.quests}/${selectedQuest.id}`);
-              }}
-              style={{ position: 'relative', overflow: 'visible' }}
+              onPress={() => handleQuestClick(selectedQuest)}
+              style={{ position: 'relative', overflow: 'visible', cursor: 'pointer' }}
             >
               {/* Цветной акцент */}
               <div
@@ -569,7 +781,7 @@ export const MapPage: React.FC = () => {
           </div>
         )}
 
-        {filteredQuests.length === 0 && (
+        {filteredQuests.length === 0 && !showCategoryQuests && (
           <div
             style={{
               position: 'absolute',
@@ -594,7 +806,7 @@ export const MapPage: React.FC = () => {
           @keyframes slideUp {
             from {
               opacity: 0;
-              transform: translateY(20px);
+              transform: translateY(100%);
             }
             to {
               opacity: 1;
@@ -614,6 +826,11 @@ export const MapPage: React.FC = () => {
           .custom-marker {
             background: none !important;
             border: none !important;
+          }
+
+          /* Скрываем атрибуцию Leaflet */
+          .leaflet-control-attribution {
+            display: none !important;
           }
         `}
       </style>

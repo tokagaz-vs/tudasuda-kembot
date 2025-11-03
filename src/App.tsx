@@ -4,13 +4,26 @@ import { useTelegram } from '@/hooks/useTelegram';
 import { useAuthStore } from '@/store/authStore';
 import { useTheme } from '@/hooks/useTheme';
 import { ROUTES } from '@/constants';
+import { OfflineIndicator } from '@/components/offline/OfflineIndicator';
+import { ScrollToTop } from '@/components/ScrollToTop';
+import { storageService } from '@/services/storage.service';
 
 import {
   HomePage,
   ProfilePage,
+  ProfileEditPage,
+  PrivacyPage,
+  HelpPage,
   QuestsPage,
+  QuestDetailPage,
+  QuestPlayPage,
   MapPage,
   LeaderboardPage,
+  AchievementsPage,
+  CompanionsPage,
+  NotificationsPage,
+  EventsPage,
+  ShopPage,
 } from '@/pages';
 
 const LoadingScreen: React.FC<{ message?: string }> = ({ message }) => {
@@ -84,6 +97,21 @@ const App: React.FC = () => {
   const [authAttempted, setAuthAttempted] = useState(false);
 
   useEffect(() => {
+    const initializeApp = async () => {
+      if (isReady && webApp) {
+        try {
+          await storageService.ensureBucketExists();
+          console.log('[App] Storage initialized');
+        } catch (error) {
+          console.warn('[App] Storage initialization failed:', error);
+        }
+      }
+    };
+
+    initializeApp();
+  }, [isReady, webApp]);
+
+  useEffect(() => {
     const attemptAuth = async () => {
       console.log('[App] State:', {
         isReady,
@@ -117,7 +145,6 @@ const App: React.FC = () => {
         }
       } else if (!telegramUser && isReady) {
         console.warn('[App] ⚠️ No Telegram user available');
-        // Показываем debug info
         console.log('Debug info:', window.__tgDebug);
       }
     };
@@ -125,18 +152,19 @@ const App: React.FC = () => {
     attemptAuth();
   }, [isReady, isTelegram, telegramUser, isAuthenticated, user, login, authAttempted, webApp]);
 
-  // Показываем лоадер только пока не готов Telegram SDK
   if (!isReady) {
     return <LoadingScreen message="Подключение к Telegram..." />;
   }
 
-  // ✅ ВАЖНО: НЕ блокируем доступ, даже если нет user
-  // Это позволит увидеть что происходит
-  
   return (
     <BrowserRouter>
+      <ScrollToTop /> {/* Добавьте этот компонент здесь */}
+      <OfflineIndicator />
       <Routes>
+        {/* Главная */}
         <Route path={ROUTES.home} element={<HomePage />} />
+        
+        {/* Профиль */}
         <Route
           path={ROUTES.profile}
           element={
@@ -146,6 +174,16 @@ const App: React.FC = () => {
           }
         />
         <Route
+          path="/profile/edit"
+          element={
+            <ProtectedRoute>
+              <ProfileEditPage />
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* Квесты */}
+        <Route
           path={ROUTES.quests}
           element={
             <ProtectedRoute>
@@ -154,6 +192,24 @@ const App: React.FC = () => {
           }
         />
         <Route
+          path={`${ROUTES.quests}/:questId`}
+          element={
+            <ProtectedRoute>
+              <QuestDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={`${ROUTES.quests}/:questId/play`}
+          element={
+            <ProtectedRoute>
+              <QuestPlayPage />
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* Карта */}
+        <Route
           path={ROUTES.map}
           element={
             <ProtectedRoute>
@@ -161,6 +217,8 @@ const App: React.FC = () => {
             </ProtectedRoute>
           }
         />
+        
+        {/* Рейтинг */}
         <Route
           path={ROUTES.leaderboard}
           element={
@@ -169,6 +227,77 @@ const App: React.FC = () => {
             </ProtectedRoute>
           }
         />
+        
+        {/* Достижения */}
+        <Route
+          path="/achievements"
+          element={
+            <ProtectedRoute>
+              <AchievementsPage />
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* Компаньоны */}
+        <Route
+          path="/companions"
+          element={
+            <ProtectedRoute>
+              <CompanionsPage />
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* Уведомления */}
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <NotificationsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* События */}
+        <Route
+          path="/events"
+          element={
+            <ProtectedRoute>
+              <EventsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Магазин */}
+        <Route
+          path="/shop"
+          element={
+            <ProtectedRoute>
+              <ShopPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Настройки */}
+        <Route
+          path="/privacy"
+          element={
+            <ProtectedRoute>
+              <PrivacyPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/help"
+          element={
+            <ProtectedRoute>
+              <HelpPage />
+            </ProtectedRoute>
+          }
+        />
+        
+        {/* 404 */}
         <Route path="*" element={<Navigate to={ROUTES.home} replace />} />
       </Routes>
     </BrowserRouter>

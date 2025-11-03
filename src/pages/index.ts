@@ -1,5 +1,15 @@
 export { HomePage } from './HomePage';
 export { ProfilePage } from './ProfilePage';
+export { ProfileEditPage } from './ProfileEditPage';
+export { PrivacyPage } from './PrivacyPage';
+export { HelpPage } from './HelpPage';
 export { QuestsPage } from './QuestsPage';
+export { QuestDetailPage } from './QuestDetailPage';
+export { QuestPlayPage } from './QuestPlayPage';
 export { MapPage } from './MapPage';
 export { LeaderboardPage } from './LeaderboardPage';
+export { AchievementsPage } from './AchievementsPage';
+export { CompanionsPage } from './CompanionsPage';
+export { NotificationsPage } from './NotificationsPage';
+export { EventsPage } from './EventsPage';
+export { ShopPage } from './ShopPage';

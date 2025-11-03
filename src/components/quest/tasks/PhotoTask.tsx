@@ -1,9 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { Card, Button } from '@/components/ui';
 import { useTheme } from '@/hooks/useTheme';
-import { QuestPoint } from '@/types';
-import { supabase } from '@/services/supabase';
-import { Camera, Image as ImageIcon, Check } from '@phosphor-icons/react';
+import { useTelegram } from '@/hooks/useTelegram';
+import { useAuthStore } from '@/store/authStore';
+import { storageService } from '@/services/storage.service';
+import type { QuestPoint } from '@/types';
+import { Camera, X, Check, Upload } from '@phosphor-icons/react';
 
 interface PhotoTaskProps {
   point: QuestPoint;
@@ -12,23 +14,33 @@ interface PhotoTaskProps {
 
 export const PhotoTask: React.FC<PhotoTaskProps> = ({ point, onComplete }) => {
   const { colors, spacing } = useTheme();
-  const [photo, setPhoto] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const { hapticFeedback, showAlert } = useTelegram();
+  const { user } = useAuthStore();
+  const [photo, setPhoto] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const taskData = point.task_data || {
-    instruction: 'Сделайте фотографию места',
+    description: 'Сделайте фотографию места',
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Проверка типа файла
     if (!file.type.startsWith('image/')) {
-      alert('Пожалуйста, выберите изображение');
+      showAlert('Пожалуйста, выберите изображение');
       return;
     }
+
+    // Проверка размера (максимум 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      showAlert('Размер файла не должен превышать 5MB');
+      return;
+    }
+
+    hapticFeedback.impact('light');
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -37,69 +49,76 @@ export const PhotoTask: React.FC<PhotoTaskProps> = ({ point, onComplete }) => {
     reader.readAsDataURL(file);
   };
 
-  const uploadPhoto = async () => {
-    if (!photo) return;
+  const handleSubmit = async () => {
+    if (!photo || !user) return;
 
-    setIsUploading(true);
+    hapticFeedback.impact('medium');
+    setIsSubmitting(true);
+    setUploadProgress(10);
 
     try {
-      // Конвертируем base64 в blob
-      const response = await fetch(photo);
-      const blob = await response.blob();
+      // Загружаем фото в Supabase Storage
+      setUploadProgress(30);
+      const { data: photoUrl, error } = await storageService.uploadPhotoFromBase64(
+        user.id,
+        point.quest_id,
+        point.id,
+        photo,
+        'photo'
+      );
 
-      const fileName = `quest-photos/${point.id}/${Date.now()}.jpg`;
+      setUploadProgress(70);
 
-      const { error } = await supabase.storage
-        .from('quest-photos')
-        .upload(fileName, blob, {
-          contentType: 'image/jpeg',
-          cacheControl: '3600',
-        });
+      if (error || !photoUrl) {
+        throw new Error('Не удалось загрузить фото');
+      }
 
-      if (error) throw error;
+      setUploadProgress(100);
 
-      const { data: urlData } = supabase.storage
-        .from('quest-photos')
-        .getPublicUrl(fileName);
+      // Отправляем результат
+      setTimeout(() => {
+        onComplete(true, { photoUrl }, photoUrl);
+        setIsSubmitting(false);
+        setUploadProgress(0);
+      }, 300);
 
-      onComplete(true, { photoUrl: urlData.publicUrl }, urlData.publicUrl);
-    } catch (error) {
-      console.error('Upload error:', error);
-      alert('Не удалось загрузить фото');
-    } finally {
-      setIsUploading(false);
+    } catch (error: any) {
+      console.error('Photo upload error:', error);
+      await showAlert('Не удалось загрузить фото. Попробуйте еще раз.');
+      setIsSubmitting(false);
+      setUploadProgress(0);
     }
   };
 
   return (
-    <div
-      style={{
-        opacity: 0,
-        animation: 'fadeInUp 0.5s ease forwards',
-      }}
-    >
+    <div style={{ padding: `0 ${spacing.lg}px` }}>
       <Card variant="glass">
-        <h3
-          style={{
-            fontSize: '20px',
-            fontWeight: 700,
-            color: colors.text,
-            marginBottom: `${spacing.lg}px`,
-            letterSpacing: '-0.3px',
-          }}
-        >
-          {taskData.instruction}
+        <h3 style={{
+          fontSize: '18px',
+          fontWeight: 700,
+          color: colors.text,
+          marginBottom: spacing.md,
+          letterSpacing: '-0.3px',
+        }}>
+          📷 Фото-задание
         </h3>
 
+        <p style={{
+          fontSize: '14px',
+          color: colors.textSecondary,
+          marginBottom: spacing.lg,
+          lineHeight: '20px',
+        }}>
+          {taskData.description || taskData.instruction || 'Сделайте фото в указанном месте'}
+        </p>
+
         {photo ? (
-          <div
-            style={{
-              position: 'relative',
-              marginBottom: `${spacing.md}px`,
-              borderRadius: '16px',
-              overflow: 'hidden',
-            }}
-          >
+          <div style={{
+            position: 'relative',
+            marginBottom: spacing.md,
+            borderRadius: '16px',
+            overflow: 'hidden',
+          }}>
             <img
               src={photo}
               alt="Quest photo"
@@ -110,111 +129,140 @@ export const PhotoTask: React.FC<PhotoTaskProps> = ({ point, onComplete }) => {
                 borderRadius: '16px',
               }}
             />
-            {isUploading && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  background: 'rgba(0,0,0,0.6)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: `${spacing.md}px`,
-                }}
-              >
-                <div
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    border: '3px solid #FFFFFF',
-                    borderTopColor: 'transparent',
-                    borderRadius: '50%',
-                    animation: 'spin 0.8s linear infinite',
-                  }}
-                />
-                <span style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>
-                  Загрузка...
-                </span>
+
+            {/* Прогресс загрузки */}
+            {isSubmitting && uploadProgress > 0 && (
+              <div style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: '4px',
+                background: 'rgba(0,0,0,0.3)',
+              }}>
+                <div style={{
+                  height: '100%',
+                  width: `${uploadProgress}%`,
+                  background: colors.success,
+                  transition: 'width 0.3s ease',
+                }} />
               </div>
             )}
-            {!isUploading && (
-              <div
-                style={{
+
+            {!isSubmitting && (
+              <>
+                <button
+                  onClick={() => {
+                    hapticFeedback.impact('light');
+                    setPhoto('');
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: spacing.sm,
+                    right: spacing.sm,
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '18px',
+                    background: 'rgba(0,0,0,0.6)',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <X size={18} color="#FFFFFF" weight="bold" />
+                </button>
+                <div style={{
                   position: 'absolute',
-                  top: '12px',
-                  right: '12px',
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '18px',
+                  bottom: spacing.sm,
+                  right: spacing.sm,
+                  padding: `${spacing.xs}px ${spacing.md}px`,
+                  borderRadius: '999px',
                   background: colors.success,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Check size={20} color="#FFFFFF" weight="bold" />
-              </div>
+                  gap: spacing.xs,
+                }}>
+                  <Check size={16} color="#FFFFFF" weight="bold" />
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#FFFFFF' }}>
+                    Готово
+                  </span>
+                </div>
+              </>
             )}
           </div>
         ) : (
-          <Card
-            variant="outlined"
+          <label
             style={{
-              height: '200px',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              borderWidth: '2px',
-              borderStyle: 'dashed',
-              borderColor: colors.border,
-              gap: `${spacing.md}px`,
-              marginBottom: `${spacing.md}px`,
+              padding: `${spacing.xxl}px`,
+              borderRadius: '16px',
+              border: `2px dashed ${colors.border}`,
+              background: colors.surface,
               cursor: 'pointer',
+              marginBottom: spacing.md,
+              transition: 'all 0.2s ease',
             }}
-            onPress={() => fileInputRef.current?.click()}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = colors.primary;
+              e.currentTarget.style.background = colors.primary + '05';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = colors.border;
+              e.currentTarget.style.background = colors.surface;
+            }}
           >
-            <ImageIcon size={48} color={colors.textLight} />
-            <p style={{ fontSize: '14px', color: colors.textSecondary, margin: 0 }}>
-              Сделайте или выберите фото
-            </p>
-          </Card>
+            <Camera size={48} color={colors.textLight} weight="regular" />
+            <span style={{
+              fontSize: '14px',
+              color: colors.textSecondary,
+              marginTop: spacing.md,
+              textAlign: 'center',
+            }}>
+              Нажмите для загрузки фото
+            </span>
+            <span style={{
+              fontSize: '12px',
+              color: colors.textLight,
+              marginTop: spacing.xs,
+            }}>
+              Максимум 5MB
+            </span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFileSelect}
+              style={{ display: 'none' }}
+            />
+          </label>
         )}
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          style={{ display: 'none' }}
-          onChange={handleFileSelect}
-        />
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.md}px` }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
           {photo ? (
             <>
               <Button
-                title="Загрузить фото"
+                title={isSubmitting ? `Загрузка... ${uploadProgress}%` : "Отправить фото"}
                 variant="primary"
-                onClick={uploadPhoto}
-                disabled={isUploading}
-                loading={isUploading}
-                icon={<Check size={20} color="#FFFFFF" weight="bold" />}
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                loading={isSubmitting}
+                icon={isSubmitting ? <Upload size={20} color="#FFFFFF" weight="bold" /> : undefined}
                 fullWidth
               />
               <Button
                 title="Переснять"
-                variant="glass"
+                variant="secondary"
                 onClick={() => {
-                  setPhoto(null);
+                  setPhoto('');
                   fileInputRef.current?.click();
                 }}
-                disabled={isUploading}
-                icon={<Camera size={20} color={colors.text} weight="bold" />}
+                disabled={isSubmitting}
                 fullWidth
               />
             </>
@@ -229,26 +277,6 @@ export const PhotoTask: React.FC<PhotoTaskProps> = ({ point, onComplete }) => {
           )}
         </div>
       </Card>
-
-      <style>
-        {`
-          @keyframes fadeInUp {
-            from {
-              opacity: 0;
-              transform: translateY(20px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}
-      </style>
     </div>
   );
 };

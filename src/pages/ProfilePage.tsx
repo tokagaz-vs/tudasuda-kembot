@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Layout } from '@/components/layout';
-import { Card, Button, Avatar, Input } from '@/components/ui';
+import { Card, Button, Avatar } from '@/components/ui';
 import { useTheme } from '@/hooks/useTheme';
 import { useTelegram } from '@/hooks/useTelegram';
 import { useAuthStore } from '@/store/authStore';
@@ -13,23 +14,20 @@ import {
   ShieldCheck, 
   Question, 
   Info, 
-  Camera, 
-  X, 
-  Check, 
+  PencilSimple,
   Lightning, 
   Crown,
   Sparkle,
+  CaretRight,
+  Coins, // ✅ добавим иконку монет
 } from '@phosphor-icons/react';
+import { LevelProgress } from '@/components/profile/LevelProgress'; // ✅ используем твой компонент уровня
 
 export const ProfilePage: React.FC = () => {
+  const navigate = useNavigate();
   const { colors, spacing, gradients } = useTheme();
   const { hapticFeedback } = useTelegram();
   const { user } = useAuthStore();
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editForm, setEditForm] = useState({
-    username: user?.username || '',
-    full_name: user?.full_name || '',
-  });
 
   if (!user) {
     return (
@@ -47,9 +45,6 @@ export const ProfilePage: React.FC = () => {
       </Layout>
     );
   }
-
-  const xpForNextLevel = user.level * 100;
-  const xpPct = Math.min(100, Math.round((user.experience / xpForNextLevel) * 100));
 
   const StatCard = ({
     icon: Icon,
@@ -125,14 +120,12 @@ export const ProfilePage: React.FC = () => {
     title,
     subtitle,
     onPress,
-    danger,
     delay = 0,
   }: {
     icon: any;
     title: string;
     subtitle?: string;
     onPress: () => void;
-    danger?: boolean;
     delay?: number;
   }) => (
     <div
@@ -166,25 +159,21 @@ export const ProfilePage: React.FC = () => {
             width: '44px',
             height: '44px',
             borderRadius: '22px',
-            background: danger ? colors.error + '15' : colors.surfaceAlt,
+            background: colors.surfaceAlt,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             marginRight: `${spacing.md}px`,
           }}
         >
-          <Icon
-            size={20}
-            color={danger ? colors.error : colors.text}
-            weight="bold"
-          />
+          <Icon size={20} color={colors.text} weight="bold" />
         </div>
         <div style={{ flex: 1 }}>
           <h4
             style={{
               fontSize: '16px',
               fontWeight: 600,
-              color: danger ? colors.error : colors.text,
+              color: colors.text,
               marginBottom: subtitle ? '2px' : 0,
             }}
           >
@@ -196,9 +185,15 @@ export const ProfilePage: React.FC = () => {
             </p>
           )}
         </div>
+        <CaretRight size={20} color={colors.textLight} />
       </div>
     </div>
   );
+
+  // ✅ Энергия: цвет и процент
+  const energyPct = Math.min(100, Math.round((user.energy / user.max_energy) * 100));
+  const energyColor =
+    energyPct < 30 ? '#EF4444' : energyPct < 70 ? '#F59E0B' : '#10B981';
 
   return (
     <Layout>
@@ -214,7 +209,6 @@ export const ProfilePage: React.FC = () => {
             overflow: 'hidden',
           }}
         >
-          {/* Декоративные звездочки */}
           <Sparkle
             size={16}
             color="rgba(255,255,255,0.3)"
@@ -294,8 +288,11 @@ export const ProfilePage: React.FC = () => {
               title="Редактировать профиль"
               variant="glass"
               size="small"
-              onClick={() => setShowEditModal(true)}
-              icon={<Camera size={16} color="#FFFFFF" />}
+              onClick={() => {
+                hapticFeedback.impact('light');
+                navigate('/profile/edit');
+              }}
+              icon={<PencilSimple size={16} color="#FFFFFF" />}
               style={{ marginTop: `${spacing.sm}px`, minWidth: '180px' }}
             />
           </div>
@@ -341,11 +338,24 @@ export const ProfilePage: React.FC = () => {
             />
           </div>
 
-          {/* XP Progress */}
+          {/* ✅ Прогресс уровня (заменили самописный расчёт на LevelProgress) */}
           <div
             style={{
               opacity: 0,
               animation: 'fadeInDown 0.5s ease forwards 400ms',
+              marginBottom: `${spacing.lg}px`,
+            }}
+          >
+            <Card variant="glass">
+              <LevelProgress level={user.level} experience={user.experience} />
+            </Card>
+          </div>
+
+          {/* ✅ Энергия */}
+          <div
+            style={{
+              opacity: 0,
+              animation: 'fadeInDown 0.5s ease forwards 430ms',
               marginBottom: `${spacing.lg}px`,
             }}
           >
@@ -358,11 +368,14 @@ export const ProfilePage: React.FC = () => {
                   marginBottom: `${spacing.sm}px`,
                 }}
               >
-                <span style={{ fontSize: '14px', fontWeight: 600, color: colors.text }}>
-                  Опыт
-                </span>
-                <span style={{ fontSize: '14px', color: colors.textSecondary }}>
-                  {user.experience} / {xpForNextLevel}
+                <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.xs}px` }}>
+                  <Lightning size={20} color={energyColor} weight="fill" />
+                  <span style={{ fontSize: '14px', fontWeight: 600, color: colors.text }}>
+                    Энергия
+                  </span>
+                </div>
+                <span style={{ fontSize: '15px', fontWeight: 700, color: energyColor }}>
+                  {user.energy} / {user.max_energy}
                 </span>
               </div>
               <div
@@ -376,21 +389,85 @@ export const ProfilePage: React.FC = () => {
                 <div
                   style={{
                     height: '100%',
-                    width: `${xpPct}%`,
-                    background: `linear-gradient(90deg, ${gradients.brand.colors[0]}, ${gradients.brand.colors[1]})`,
+                    width: `${energyPct}%`,
+                    background: energyColor,
                     transition: 'width 0.3s ease',
                   }}
                 />
               </div>
+              <p style={{ margin: `${spacing.sm}px 0 0`, fontSize: '12px', color: colors.textSecondary }}>
+                Восстанавливается автоматически
+              </p>
             </Card>
           </div>
 
-          {/* Premium баннер (если не премиум) */}
+          {/* ✅ Баланс (монеты и очки) */}
+          <div
+            style={{
+              opacity: 0,
+              animation: 'fadeInDown 0.5s ease forwards 450ms',
+              marginBottom: `${spacing.lg}px`,
+            }}
+          >
+            <Card variant="glass">
+              <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.lg}px` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.xs}px` }}>
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      background: '#F59E0B22',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Coins size={18} color="#F59E0B" weight="fill" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 2 }}>
+                      Монеты
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: colors.text }}>
+                      {user.coins.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.xs}px` }}>
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      background: '#8B5CF622',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Star size={18} color="#8B5CF6" weight="fill" />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 12, color: colors.textSecondary, marginBottom: 2 }}>
+                      Очки
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: colors.text }}>
+                      {user.points.toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Premium баннер */}
           {!user.is_premium && (
             <div
               style={{
                 opacity: 0,
-                animation: 'fadeInDown 0.5s ease forwards 450ms',
+                animation: 'fadeInDown 0.5s ease forwards 480ms',
                 marginBottom: `${spacing.lg}px`,
               }}
             >
@@ -442,28 +519,31 @@ export const ProfilePage: React.FC = () => {
                 icon={Bell}
                 title="Уведомления"
                 subtitle="Управление уведомлениями"
-                onPress={() => alert('В разработке')}
+                onPress={() => navigate('/notifications')}
                 delay={500}
               />
               <MenuItem
                 icon={ShieldCheck}
                 title="Приватность"
                 subtitle="Настройки конфиденциальности"
-                onPress={() => alert('В разработке')}
+                onPress={() => navigate('/privacy')}
                 delay={550}
               />
               <MenuItem
                 icon={Question}
                 title="Помощь и поддержка"
                 subtitle="Свяжитесь с нами"
-                onPress={() => alert('В разработке')}
+                onPress={() => navigate('/help')}
                 delay={600}
               />
               <MenuItem
                 icon={Info}
                 title="О приложении"
                 subtitle="Версия 1.0.0"
-                onPress={() => alert('TudaSuda Quest\n\nВерсия 1.0.0\n\n© 2024 Все права защищены')}
+                onPress={() => {
+                  hapticFeedback.notification('success');
+                  alert('TudaSuda Quest\n\nВерсия 1.0.0\n\n© 2024 Все права защищены');
+                }}
                 delay={650}
               />
             </Card>
@@ -495,100 +575,6 @@ export const ProfilePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Модальное окно редактирования */}
-      {showEditModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: spacing.lg,
-            animation: 'fadeIn 0.2s ease',
-          }}
-          onClick={() => setShowEditModal(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: colors.background,
-              borderRadius: `${spacing.lg}px`,
-              width: '100%',
-              maxWidth: '400px',
-              maxHeight: '80vh',
-              overflow: 'hidden',
-              animation: 'slideUp 0.3s ease',
-            }}
-          >
-            {/* Хедер */}
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: spacing.lg,
-                borderBottom: `1px solid ${colors.border}`,
-              }}
-            >
-              <X
-                size={24}
-                color={colors.text}
-                style={{ cursor: 'pointer' }}
-                onClick={() => setShowEditModal(false)}
-              />
-              <h3 style={{ fontSize: '17px', fontWeight: 700, color: colors.text, margin: 0 }}>
-                Редактировать профиль
-              </h3>
-              <Check size={24} color={colors.primary} weight="bold" style={{ cursor: 'pointer' }} />
-            </div>
-
-            {/* Контент */}
-            <div style={{ padding: spacing.lg, overflowY: 'auto' }}>
-              <div style={{ textAlign: 'center', marginBottom: spacing.xl }}>
-                <Avatar
-                  src={user.photo_url}
-                  alt={user.first_name}
-                  size="xl"
-                  fallback={user.first_name?.charAt(0)}
-                  variant="gradient"
-                />
-                <p
-                  style={{
-                    fontSize: '15px',
-                    fontWeight: 600,
-                    color: colors.primary,
-                    marginTop: spacing.md,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Изменить фото
-                </p>
-              </div>
-
-              <Input
-                label="Имя пользователя"
-                value={editForm.username}
-                onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
-                placeholder="Введите имя пользователя"
-              />
-
-              <Input
-                label="Полное имя"
-                value={editForm.full_name}
-                onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
-                placeholder="Введите полное имя"
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
       <style>
         {`
           @keyframes fadeIn {
@@ -600,17 +586,6 @@ export const ProfilePage: React.FC = () => {
             from {
               opacity: 0;
               transform: translateY(-20px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-
-          @keyframes slideUp {
-            from {
-              opacity: 0;
-              transform: translateY(20px);
             }
             to {
               opacity: 1;

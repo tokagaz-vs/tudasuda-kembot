@@ -1,9 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { Card, Button } from '@/components/ui';
 import { useTheme } from '@/hooks/useTheme';
-import { QuestPoint } from '@/types';
-import { supabase } from '@/services/supabase';
-import { Camera, User, Check } from '@phosphor-icons/react';
+import { useTelegram } from '@/hooks/useTelegram';
+import type { QuestPoint } from '@/types';
+import { Camera, User, X, Check } from '@phosphor-icons/react';
 
 interface SelfieTaskProps {
   point: QuestPoint;
@@ -12,12 +12,13 @@ interface SelfieTaskProps {
 
 export const SelfieTask: React.FC<SelfieTaskProps> = ({ point, onComplete }) => {
   const { colors, spacing } = useTheme();
-  const [selfie, setSelfie] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const { hapticFeedback } = useTelegram();
+  const [selfie, setSelfie] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const taskData = point.task_data || {
-    instruction: 'Сделайте селфи на фоне достопримечательности',
+    description: 'Сделайте селфи на фоне достопримечательности',
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -29,6 +30,8 @@ export const SelfieTask: React.FC<SelfieTaskProps> = ({ point, onComplete }) => 
       return;
     }
 
+    hapticFeedback.impact('light');
+
     const reader = new FileReader();
     reader.onload = (event) => {
       setSelfie(event.target?.result as string);
@@ -36,69 +39,49 @@ export const SelfieTask: React.FC<SelfieTaskProps> = ({ point, onComplete }) => 
     reader.readAsDataURL(file);
   };
 
-  const uploadSelfie = async () => {
+  const handleSubmit = async () => {
     if (!selfie) return;
 
-    setIsUploading(true);
+    hapticFeedback.impact('medium');
+    setIsSubmitting(true);
 
-    try {
-      const response = await fetch(selfie);
-      const blob = await response.blob();
-
-      const fileName = `selfies/${point.id}/${Date.now()}.jpg`;
-
-      const { error } = await supabase.storage
-        .from('quest-photos')
-        .upload(fileName, blob, {
-          contentType: 'image/jpeg',
-          cacheControl: '3600',
-        });
-
-      if (error) throw error;
-
-      const { data: urlData } = supabase.storage
-        .from('quest-photos')
-        .getPublicUrl(fileName);
-
-      onComplete(true, { selfieUrl: urlData.publicUrl }, urlData.publicUrl);
-    } catch (error) {
-      console.error('Upload error:', error);
-      alert('Не удалось загрузить селфи');
-    } finally {
-      setIsUploading(false);
-    }
+    setTimeout(() => {
+      onComplete(true, { selfieUrl: selfie }, selfie);
+      setIsSubmitting(false);
+    }, 500);
   };
 
   return (
-    <div
-      style={{
-        opacity: 0,
-        animation: 'fadeInUp 0.5s ease forwards',
-      }}
-    >
+    <div style={{ padding: `0 ${spacing.lg}px` }}>
       <Card variant="glass">
-        <h3
-          style={{
-            fontSize: '20px',
-            fontWeight: 700,
-            color: colors.text,
-            marginBottom: `${spacing.lg}px`,
-            letterSpacing: '-0.3px',
-            textAlign: 'center',
-          }}
-        >
-          {taskData.instruction}
+        <h3 style={{
+          fontSize: '18px',
+          fontWeight: 700,
+          color: colors.text,
+          marginBottom: spacing.md,
+          letterSpacing: '-0.3px',
+          textAlign: 'center',
+        }}>
+          🤳 Селфи-задание
         </h3>
 
+        <p style={{
+          fontSize: '14px',
+          color: colors.textSecondary,
+          marginBottom: spacing.lg,
+          lineHeight: '20px',
+          textAlign: 'center',
+        }}>
+          {taskData.description || taskData.instruction || 'Сделайте селфи на фоне достопримечательности'}
+        </p>
+
         {selfie ? (
-          <div
-            style={{
-              position: 'relative',
-              marginBottom: `${spacing.md}px`,
-              borderRadius: '16px',
-              overflow: 'hidden',
-            }}
-          >
+          <div style={{
+            position: 'relative',
+            marginBottom: spacing.md,
+            borderRadius: '16px',
+            overflow: 'hidden',
+          }}>
             <img
               src={selfie}
               alt="Selfie"
@@ -109,122 +92,106 @@ export const SelfieTask: React.FC<SelfieTaskProps> = ({ point, onComplete }) => 
                 borderRadius: '16px',
               }}
             />
-            {isUploading && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  background: 'rgba(0,0,0,0.6)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: `${spacing.md}px`,
-                }}
-              >
-                <div
-                  style={{
-                    width: '40px',
-                    height: '40px',
-                    border: '3px solid #FFFFFF',
-                    borderTopColor: 'transparent',
-                    borderRadius: '50%',
-                    animation: 'spin 0.8s linear infinite',
+            {!isSubmitting && (
+              <>
+                <button
+                  onClick={() => {
+                    hapticFeedback.impact('light');
+                    setSelfie('');
                   }}
-                />
-                <span style={{ fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>
-                  Загрузка...
-                </span>
-              </div>
-            )}
-            {!isUploading && (
-              <div
-                style={{
+                  style={{
+                    position: 'absolute',
+                    top: spacing.sm,
+                    right: spacing.sm,
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '18px',
+                    background: 'rgba(0,0,0,0.6)',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <X size={18} color="#FFFFFF" weight="bold" />
+                </button>
+                <div style={{
                   position: 'absolute',
-                  top: '12px',
-                  right: '12px',
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '18px',
+                  bottom: spacing.sm,
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  padding: `${spacing.xs}px ${spacing.md}px`,
+                  borderRadius: '999px',
                   background: colors.success,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Check size={20} color="#FFFFFF" weight="bold" />
-              </div>
+                  gap: spacing.xs,
+                }}>
+                  <Check size={16} color="#FFFFFF" weight="bold" />
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#FFFFFF' }}>
+                    Отличное селфи!
+                  </span>
+                </div>
+              </>
             )}
           </div>
         ) : (
-          <Card
-            variant="outlined"
+          <label
             style={{
-              height: '280px',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              borderWidth: '2px',
-              borderStyle: 'dashed',
-              borderColor: colors.border,
-              gap: `${spacing.md}px`,
-              marginBottom: `${spacing.md}px`,
+              padding: `${spacing.xxl}px`,
+              borderRadius: '16px',
+              border: `2px dashed ${colors.border}`,
+              background: colors.surface,
               cursor: 'pointer',
-              padding: `${spacing.lg}px`,
+              marginBottom: spacing.md,
+              minHeight: '280px',
             }}
-            onPress={() => fileInputRef.current?.click()}
           >
             <User size={64} color={colors.textLight} weight="light" />
-            <p
-              style={{
-                fontSize: '14px',
-                color: colors.textSecondary,
-                textAlign: 'center',
-                lineHeight: '20px',
-                margin: 0,
-              }}
-            >
-              Сделайте селфи на фоне
-              <br />
-              достопримечательности
-            </p>
-          </Card>
+            <span style={{
+              fontSize: '14px',
+              color: colors.textSecondary,
+              marginTop: spacing.md,
+              textAlign: 'center',
+              lineHeight: '20px',
+            }}>
+              Сделайте селфи на фоне<br />достопримечательности
+            </span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="user"
+              onChange={handleFileSelect}
+              style={{ display: 'none' }}
+            />
+          </label>
         )}
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          capture="user"
-          style={{ display: 'none' }}
-          onChange={handleFileSelect}
-        />
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.md}px` }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: spacing.md }}>
           {selfie ? (
             <>
               <Button
-                title="Загрузить селфи"
+                title="Отправить селфи"
                 variant="primary"
-                onClick={uploadSelfie}
-                disabled={isUploading}
-                loading={isUploading}
-                icon={<Check size={20} color="#FFFFFF" weight="bold" />}
+                onClick={handleSubmit}
+                disabled={isSubmitting}
+                loading={isSubmitting}
                 fullWidth
               />
               <Button
                 title="Переснять"
-                variant="glass"
+                variant="secondary"
                 onClick={() => {
-                  setSelfie(null);
+                  setSelfie('');
                   fileInputRef.current?.click();
                 }}
-                disabled={isUploading}
-                icon={<Camera size={20} color={colors.text} weight="bold" />}
+                disabled={isSubmitting}
                 fullWidth
               />
             </>
@@ -239,26 +206,6 @@ export const SelfieTask: React.FC<SelfieTaskProps> = ({ point, onComplete }) => 
           )}
         </div>
       </Card>
-
-      <style>
-        {`
-          @keyframes fadeInUp {
-            from {
-              opacity: 0;
-              transform: translateY(20px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}
-      </style>
     </div>
   );
 };

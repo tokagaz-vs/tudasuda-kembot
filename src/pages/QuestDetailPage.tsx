@@ -18,19 +18,25 @@ import {
   Play,
 } from '@phosphor-icons/react';
 
-
 const DIFFICULTY_LEVELS = {
   easy: { label: 'Легко', color: '#10B981' },
   medium: { label: 'Средне', color: '#F59E0B' },
   hard: { label: 'Сложно', color: '#EF4444' },
 };
 
+// Стоимость энергии по сложности (синхронизировано с rewards.service)
+const ENERGY_COST_BY_DIFFICULTY = {
+  easy: 30,
+  medium: 50,
+  hard: 80,
+} as const;
+
 export const QuestDetailPage: React.FC = () => {
   const { questId } = useParams<{ questId: string }>();
   const navigate = useNavigate();
   const { colors, spacing, typography, gradients } = useTheme();
-  const { hapticFeedback } = useTelegram();
-  const { user } = useAuthStore();
+  const { hapticFeedback, showAlert, showConfirm } = useTelegram();
+  const { user, refreshUser } = useAuthStore();
 
   const [quest, setQuest] = useState<QuestWithDetails | null>(null);
   const [progress, setProgress] = useState<UserProgress | null>(null);
@@ -62,21 +68,51 @@ export const QuestDetailPage: React.FC = () => {
     if (!user || !quest) return;
 
     hapticFeedback.impact('medium');
-    setIsStarting(true);
 
+    // Если уже в процессе — просто продолжаем
     if (progress && progress.status === 'in_progress') {
       navigate(`${ROUTES.quests}/${quest.id}/play`);
+      return;
+    }
+
+    setIsStarting(true);
+
+    // Локальная проверка энергии
+    const difficultyKey = (quest.difficulty || 'easy') as keyof typeof ENERGY_COST_BY_DIFFICULTY;
+    const energyCost = ENERGY_COST_BY_DIFFICULTY[difficultyKey];
+    const currentEnergy = user.energy ?? 0;
+
+    if (currentEnergy < energyCost) {
+      setIsStarting(false);
+      const openShop = await showConfirm(
+        `Недостаточно энергии для старта.\n\nНужно: ${energyCost} ⚡\nУ вас: ${currentEnergy} ⚡\n\nОткрыть магазин?`
+      );
+      if (openShop) navigate('/shop');
+      return;
+    }
+
+    // Пытаемся начать квест (бекенд также проверит и спишет энергию)
+    const result = await questService.startQuest(user.id, quest.id);
+
+    if (result.error) {
+      // Обработка ошибки энергии с сервера
+      if ((result as any).energyRequired !== undefined) {
+        await showAlert(
+          `Недостаточно энергии.\n\nНужно: ${(result as any).energyRequired} ⚡\nУ вас: ${(result as any).energyCurrent ?? currentEnergy} ⚡`
+        );
+        const goShop = await showConfirm('Открыть магазин для пополнения энергии?');
+        if (goShop) navigate('/shop');
+      } else {
+        await showAlert('Не удалось начать квест');
+      }
       setIsStarting(false);
       return;
     }
 
-    const { error } = await questService.startQuest(user.id, quest.id);
-
-    if (error) {
-      alert('Не удалось начать квест');
-      setIsStarting(false);
-      return;
-    }
+    // Обновим пользователя (энергия списана на бэкенде)
+    try {
+      await refreshUser();
+    } catch (_) {}
 
     setIsStarting(false);
     navigate(`${ROUTES.quests}/${quest.id}/play`);
@@ -143,10 +179,19 @@ export const QuestDetailPage: React.FC = () => {
   const isInProgress = progress?.status === 'in_progress';
   const isCompleted = progress?.status === 'completed';
   const HEADER_HEIGHT = 120;
+  const BOTTOM_NAV_HEIGHT = 64; // Высота нижней навигации
+  const BUTTON_AREA_HEIGHT = 80; // Высота области с кнопкой
+
+  // Энергия: стоимость и наличие
+  const difficultyKey = (quest.difficulty || 'easy') as keyof typeof ENERGY_COST_BY_DIFFICULTY;
+  const energyCost = ENERGY_COST_BY_DIFFICULTY[difficultyKey];
+  const hasEnoughEnergy = isInProgress ? true : (user ? user.energy >= energyCost : false);
+  const energyColor =
+    !isInProgress && !hasEnoughEnergy ? colors.error : colors.success;
 
   return (
     <Layout>
-      <div style={{ paddingBottom: `${spacing.xxl * 3}px` }}>
+      <div style={{ paddingBottom: `${BUTTON_AREA_HEIGHT + BOTTOM_NAV_HEIGHT}px` }}>
         {/* Компактный градиентный хедер */}
         <div
           style={{
@@ -533,32 +578,76 @@ export const QuestDetailPage: React.FC = () => {
         )}
       </div>
 
-      {/* Кнопка действия */}
+      {/* Кнопка действия - поднята над нижней навигацией */}
       <div
         style={{
           position: 'fixed',
-          bottom: 0,
+          bottom: `${BOTTOM_NAV_HEIGHT}px`,
           left: 0,
           right: 0,
           padding: `${spacing.md}px ${spacing.lg}px`,
-          background: colors.background,
-          borderTop: `1px solid ${colors.border}`,
+          background: `linear-gradient(to top, ${colors.background}, ${colors.background}ee, transparent)`,
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
           opacity: 0,
           animation: 'fadeInUp 0.5s ease forwards 500ms',
+          zIndex: 999,
         }}
       >
         <GlassPanel padding={0}>
           <div style={{ padding: `${spacing.sm}px` }}>
+            {/* Стоимость энергии и текущая энергия */}
+            {!isInProgress && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: `${spacing.sm}px`,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Lightning size={18} color={colors.primary} weight="fill" />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: colors.text }}>
+                    Стоимость: {energyCost} ⚡
+                  </span>
+                </div>
+                {user && (
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 700,
+                      color: energyColor,
+                    }}
+                  >
+                    У вас: {user.energy} ⚡
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Кнопка действия */}
             {isCompleted ? (
-              <Button
-                title="Пройти снова"
-                variant="secondary"
-                size="large"
-                onClick={handleStartQuest}
-                loading={isStarting}
-                fullWidth
-                icon={<Play size={24} color="#FFFFFF" weight="fill" />}
-              />
+              hasEnoughEnergy ? (
+                <Button
+                  title="Пройти снова"
+                  variant="secondary"
+                  size="large"
+                  onClick={handleStartQuest}
+                  loading={isStarting}
+                  fullWidth
+                  icon={<Play size={24} color="#FFFFFF" weight="fill" />}
+                />
+              ) : (
+                <Button
+                  title="Купить энергию"
+                  variant="secondary"
+                  size="large"
+                  onClick={() => navigate('/shop')}
+                  fullWidth
+                  icon={<Lightning size={24} color="#FFFFFF" weight="fill" />}
+                />
+              )
             ) : isInProgress ? (
               <Button
                 title="Продолжить"
@@ -568,7 +657,7 @@ export const QuestDetailPage: React.FC = () => {
                 fullWidth
                 icon={<Play size={24} color="#FFFFFF" weight="fill" />}
               />
-            ) : (
+            ) : hasEnoughEnergy ? (
               <Button
                 title="Начать квест"
                 variant="primary"
@@ -577,6 +666,15 @@ export const QuestDetailPage: React.FC = () => {
                 loading={isStarting}
                 fullWidth
                 icon={<Star size={24} color="#FFFFFF" weight="fill" />}
+              />
+            ) : (
+              <Button
+                title="Купить энергию"
+                variant="secondary"
+                size="large"
+                onClick={() => navigate('/shop')}
+                fullWidth
+                icon={<Lightning size={24} color="#FFFFFF" weight="fill" />}
               />
             )}
           </div>

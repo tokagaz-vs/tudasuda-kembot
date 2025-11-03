@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { User, TelegramUser } from '@/types';
 import { authService } from '@/services/auth.service';
+import { rewardsService } from '@/services/rewards.service';
 
 interface AuthStore {
   user: User | null;
@@ -12,8 +13,10 @@ interface AuthStore {
   login: (telegramUser: TelegramUser) => Promise<boolean>;
   logout: () => void;
   updateUser: (updates: Partial<User>) => Promise<boolean>;
+  refreshUser: () => Promise<void>;
   addExperience: (amount: number) => Promise<boolean>;
   addCurrency: (coins?: number, points?: number) => Promise<boolean>;
+  regenerateEnergy: () => Promise<void>; // ✅ НОВОЕ
   clearError: () => void;
 }
 
@@ -41,8 +44,15 @@ export const useAuthStore = create<AuthStore>()(
           
           if (user) {
             console.log('✅ Пользователь авторизован:', user);
+            
+            // ✅ НОВОЕ: Восстанавливаем энергию при входе
+            await rewardsService.regenerateEnergy(user.id);
+            
+            // Обновляем данные пользователя после регенерации
+            const updatedUser = await authService.getCurrentUser(user.telegram_id);
+            
             set({
-              user,
+              user: updatedUser || user,
               isAuthenticated: true,
               isLoading: false,
               error: null,
@@ -84,8 +94,11 @@ export const useAuthStore = create<AuthStore>()(
 
         set({ isLoading: true, error: null });
         try {
+          console.log('📝 Обновление профиля:', updates);
+          
           const updatedUser = await authService.updateProfile(user.id, updates);
           if (updatedUser) {
+            console.log('✅ Профиль обновлен:', updatedUser);
             set({ 
               user: updatedUser,
               isLoading: false,
@@ -98,11 +111,51 @@ export const useAuthStore = create<AuthStore>()(
           });
           return false;
         } catch (error) {
+          console.error('❌ Ошибка обновления профиля:', error);
           set({ 
             isLoading: false,
             error: error instanceof Error ? error.message : 'Ошибка обновления профиля',
           });
           return false;
+        }
+      },
+
+      refreshUser: async () => {
+        const { user } = get();
+        if (!user) return;
+
+        set({ isLoading: true });
+        try {
+          const updatedUser = await authService.getCurrentUser(user.telegram_id);
+          if (updatedUser) {
+            console.log('🔄 Пользователь обновлен из БД:', updatedUser);
+            set({ user: updatedUser, isLoading: false });
+          } else {
+            set({ isLoading: false });
+          }
+        } catch (error) {
+          console.error('Refresh user error:', error);
+          set({ isLoading: false });
+        }
+      },
+
+      // ✅ НОВОЕ: Регенерация энергии
+      regenerateEnergy: async () => {
+        const { user } = get();
+        if (!user) return;
+
+        try {
+          const result = await rewardsService.regenerateEnergy(user.id);
+          if (result.regenerated > 0) {
+            // Обновляем пользователя после регенерации
+            const updatedUser = await authService.getCurrentUser(user.telegram_id);
+            if (updatedUser) {
+              set({ user: updatedUser });
+              console.log(`⚡ Энергия восстановлена: +${result.regenerated}`);
+            }
+          }
+        } catch (error) {
+          console.error('Regenerate energy error:', error);
         }
       },
 
@@ -115,7 +168,6 @@ export const useAuthStore = create<AuthStore>()(
 
         const success = await authService.addExperience(user.id, amount);
         if (success) {
-          // Обновляем пользователя
           const updatedUser = await authService.getCurrentUser(user.telegram_id);
           if (updatedUser) {
             set({ user: updatedUser });
@@ -133,7 +185,6 @@ export const useAuthStore = create<AuthStore>()(
 
         const success = await authService.addCurrency(user.id, coins, points);
         if (success) {
-          // Обновляем локально для быстрого отклика
           set({
             user: {
               ...user,

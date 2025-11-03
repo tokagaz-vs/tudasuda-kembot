@@ -6,6 +6,7 @@ interface UseTelegramReturn {
   user: TelegramUser | null;
   isReady: boolean;
   isTelegram: boolean;
+  isDebugMode: boolean;
   platform: string;
   colorScheme: 'light' | 'dark';
   showMainButton: (text: string, onClick: () => void) => void;
@@ -21,6 +22,7 @@ interface UseTelegramReturn {
   };
   expand: () => void;
   close: () => void;
+  openTelegramLink: (url: string) => void;
 }
 
 declare global {
@@ -72,8 +74,8 @@ const waitForTelegram = (): Promise<boolean> => {
         console.log(`✅ Telegram SDK ready after ${attempts} attempts`);
         resolve(true);
       } else if (attempts >= maxAttempts) {
-        console.warn('⚠️ Telegram SDK timeout, continuing anyway');
-        resolve(false); // Не блокируем приложение
+        console.warn('⚠️ Telegram SDK timeout after', maxAttempts, 'attempts');
+        resolve(false);
       } else {
         setTimeout(tick, 100);
       }
@@ -88,31 +90,59 @@ export const useTelegram = (): UseTelegramReturn => {
   const [webApp, setWebApp] = useState<TelegramWebApp | null>(null);
 
   const params = useMemo(() => new URLSearchParams(window.location.search), []);
-  const forceTg = params.get('force_tg') === '1';
-  const mock = params.get('mock') === '1' || import.meta.env.DEV;
+  
+  // Debug режимы
+  const isDebugMode = useMemo(() => {
+    return (
+      params.get('debug') === '1' ||
+      params.get('mock') === '1' ||
+      params.get('tma') === '1' ||
+      (import.meta.env.DEV && params.get('debug') !== '0')
+    );
+  }, [params]);
 
   // Эвристики для определения Telegram окружения
   const isTelegramUA = useMemo(() => /Telegram/i.test(navigator.userAgent), []);
+  
   const isTgParam = useMemo(() => {
     const search = window.location.search;
     const hash = window.location.hash;
-    return search.includes('tgWebApp') || hash.includes('tgWebApp') || hash.includes('tgWebAppData');
+    return (
+      search.includes('tgWebAppData') || 
+      search.includes('tgWebAppVersion') ||
+      search.includes('tgWebAppPlatform') ||
+      hash.includes('tgWebApp') || 
+      hash.includes('tgWebAppData')
+    );
   }, []);
+  
   const isTgRef = useMemo(() => {
     const ref = document.referrer || '';
-    return ref.includes('t.me') || ref.includes('telegram.org');
+    return ref.includes('t.me') || ref.includes('telegram.org') || ref.includes('telegram.me');
+  }, []);
+
+  // Проверка iframe (Telegram часто открывает в iframe)
+  const isInIframe = useMemo(() => {
+    try {
+      return window.self !== window.top;
+    } catch (e) {
+      return true;
+    }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
 
     const init = async () => {
-      console.log('[useTelegram] Initializing...', {
-        bootReady: window.__tgBoot?.ready,
-        hasWebApp: !!window.Telegram?.WebApp,
-        ua: isTelegramUA,
-        param: isTgParam,
-        ref: isTgRef,
+      console.log('[useTelegram] Starting initialization...', {
+        isDebugMode,
+        isTelegramUA,
+        isTgParam,
+        isTgRef,
+        isInIframe,
+        referrer: document.referrer,
+        search: window.location.search,
+        hash: window.location.hash,
       });
 
       try {
@@ -125,10 +155,19 @@ export const useTelegram = (): UseTelegramReturn => {
 
         if (app) {
           try {
+            // Инициализация WebApp
             app.ready();
             app.expand();
             
             // Устанавливаем тему
+            try {
+              app.headerColor = '#0F1115';
+              app.backgroundColor = '#0F1115';
+            } catch (e) {
+              console.warn('Could not set colors:', e);
+            }
+            
+            // Применяем класс темы
             if (app.colorScheme === 'dark') {
               document.body.classList.add('dark');
             } else {
@@ -137,7 +176,7 @@ export const useTelegram = (): UseTelegramReturn => {
             
             setWebApp(app);
             
-            console.log('[useTelegram] ✅ WebApp initialized', {
+            console.log('[useTelegram] ✅ WebApp initialized successfully', {
               platform: app.platform,
               version: app.version,
               colorScheme: app.colorScheme,
@@ -148,10 +187,10 @@ export const useTelegram = (): UseTelegramReturn => {
             console.error('[useTelegram] Error initializing WebApp:', e);
           }
         } else {
-          console.warn('[useTelegram] ⚠️ WebApp not available, using fallback mode');
+          console.warn('[useTelegram] ⚠️ WebApp not available');
         }
 
-        // Debug info
+        // Debug информация
         window.__tgDebug = {
           sdk: {
             ready: sdkReady,
@@ -161,12 +200,12 @@ export const useTelegram = (): UseTelegramReturn => {
             version: app?.version,
             initData: app?.initData ? `${app.initData.length} chars` : 'empty',
           },
-          boot: window.__tgBoot,
           hints: {
             isTelegramUA,
             isTgParam,
             isTgRef,
-            forceTg,
+            isInIframe,
+            isDebugMode,
           },
           env: {
             ua: navigator.userAgent,
@@ -175,7 +214,7 @@ export const useTelegram = (): UseTelegramReturn => {
           },
         };
 
-        console.log('[useTelegram] Debug info:', window.__tgDebug);
+        console.log('[useTelegram] Debug info available in window.__tgDebug');
         
       } catch (error) {
         console.error('[useTelegram] Initialization error:', error);
@@ -191,28 +230,57 @@ export const useTelegram = (): UseTelegramReturn => {
     return () => {
       cancelled = true;
     };
-  }, [isTelegramUA, isTgParam, isTgRef, forceTg]);
+  }, [isTelegramUA, isTgParam, isTgRef, isInIframe, isDebugMode]);
 
-  const user = webApp?.initDataUnsafe?.user || (mock ? MOCK_USER : null);
+  // Получаем пользователя
+  const user = useMemo(() => {
+    if (webApp?.initDataUnsafe?.user) {
+      return webApp.initDataUnsafe.user;
+    }
+    if (isDebugMode) {
+      return MOCK_USER;
+    }
+    return null;
+  }, [webApp, isDebugMode]);
 
-  // ✅ Определение isTelegram - максимально толерантно для iOS
-  // ВРЕМЕННЫЙ ФИКС: всегда true для дебага
-const isTelegram = true;
+  // Определение isTelegram - проверяем все признаки
+  const isTelegram = useMemo(() => {
+    // Если debug режим - считаем что мы в Telegram
+    if (isDebugMode) {
+      return true;
+    }
+    
+    // Если есть WebApp - точно в Telegram
+    if (webApp) {
+      return true;
+    }
+    
+    // Проверяем косвенные признаки
+    const hints = isTelegramUA || isTgParam || isTgRef || isInIframe;
+    
+    // Если приложение еще не готово, но есть признаки - считаем что в Telegram
+    if (!isReady && hints) {
+      return true;
+    }
+    
+    // Если готово, но нет WebApp и нет признаков - не в Telegram
+    return false;
+  }, [webApp, isDebugMode, isTelegramUA, isTgParam, isTgRef, isInIframe, isReady]);
 
-// Оригинальный код (закомментирован)
-// const isTelegram =
-//   !!webApp ||
-//   forceTg ||
-//   isTelegramUA ||
-//   isTgParam ||
-//   isTgRef ||
-//   window.__tgBoot?.ready === true;
-
+  // API методы
   const showMainButton = (text: string, onClick: () => void) => {
     if (!webApp) return;
     webApp.MainButton.setText(text);
     webApp.MainButton.onClick(onClick);
     webApp.MainButton.show();
+  };
+
+  const openTelegramLink = (url: string) => {
+    if (webApp) {
+      webApp.openTelegramLink(url);
+    } else {
+      window.open(url, '_blank');
+    }
   };
 
   const hideMainButton = () => webApp?.MainButton.hide();
@@ -246,10 +314,10 @@ const isTelegram = true;
 
   const hapticFeedback = {
     impact: (style: 'light' | 'medium' | 'heavy') =>
-      webApp?.HapticFeedback.impactOccurred(style),
+      webApp?.HapticFeedback?.impactOccurred?.(style),
     notification: (type: 'error' | 'success' | 'warning') =>
-      webApp?.HapticFeedback.notificationOccurred(type),
-    selection: () => webApp?.HapticFeedback.selectionChanged(),
+      webApp?.HapticFeedback?.notificationOccurred?.(type),
+    selection: () => webApp?.HapticFeedback?.selectionChanged?.(),
   };
 
   const expand = () => webApp?.expand();
@@ -260,6 +328,7 @@ const isTelegram = true;
     user,
     isReady,
     isTelegram,
+    isDebugMode,
     platform: webApp?.platform || 'web',
     colorScheme: webApp?.colorScheme || 'dark',
     showMainButton,
@@ -271,5 +340,6 @@ const isTelegram = true;
     hapticFeedback,
     expand,
     close,
+    openTelegramLink,
   };
 };

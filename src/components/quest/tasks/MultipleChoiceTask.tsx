@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Card, Button } from '@/components/ui';
 import { useTheme } from '@/hooks/useTheme';
-import { QuestPoint } from '@/types';
-import { CheckCircle, Check } from '@phosphor-icons/react';
+import { useTelegram } from '@/hooks/useTelegram';
+import type { QuestPoint } from '@/types';
+import { CheckCircle, Circle } from '@phosphor-icons/react';
 
 interface MultipleChoiceTaskProps {
   point: QuestPoint;
@@ -11,7 +12,8 @@ interface MultipleChoiceTaskProps {
 
 export const MultipleChoiceTask: React.FC<MultipleChoiceTaskProps> = ({ point, onComplete }) => {
   const { colors, spacing } = useTheme();
-  const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const { hapticFeedback } = useTelegram();
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const taskData = point.task_data || {
@@ -19,93 +21,79 @@ export const MultipleChoiceTask: React.FC<MultipleChoiceTaskProps> = ({ point, o
     options: ['Вариант 1', 'Вариант 2', 'Вариант 3'],
   };
 
-  const handleSubmit = () => {
-    if (selectedOption === null) return;
+  // ✅ Безопасная проверка options
+  const options = taskData.options || [];
 
+  const toggleOption = (option: string) => {
+    hapticFeedback.selection();
+    setSelectedOptions(prev =>
+      prev.includes(option)
+        ? prev.filter(o => o !== option)
+        : [...prev, option]
+    );
+  };
+
+  const handleSubmit = async () => {
+    hapticFeedback.impact('medium');
     setIsSubmitting(true);
-    const selectedAnswer = taskData.options[selectedOption];
-    const isCorrect = selectedAnswer === point.correct_answer;
 
     setTimeout(() => {
-      onComplete(isCorrect, selectedAnswer);
+      onComplete(true, selectedOptions);
       setIsSubmitting(false);
-    }, 500);
+    }, 300);
   };
 
   return (
-    <div
-      style={{
-        opacity: 0,
-        animation: 'fadeInUp 0.5s ease forwards',
-      }}
-    >
+    <div style={{ padding: `0 ${spacing.lg}px` }}>
       <Card variant="glass">
-        <h3
-          style={{
-            fontSize: '20px',
-            fontWeight: 700,
-            color: colors.text,
-            marginBottom: `${spacing.lg}px`,
-            letterSpacing: '-0.3px',
-          }}
-        >
+        <h3 style={{
+          fontSize: '18px',
+          fontWeight: 700,
+          color: colors.text,
+          marginBottom: spacing.lg,
+          letterSpacing: '-0.3px',
+        }}>
           {taskData.question}
         </h3>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: `${spacing.md}px`, marginBottom: `${spacing.lg}px` }}>
-          {taskData.options.map((option: string, index: number) => {
-            const isSelected = selectedOption === index;
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: spacing.md, 
+          marginBottom: spacing.lg 
+        }}>
+          {options.map((option: string, index: number) => {
+            const isSelected = selectedOptions.includes(option);
 
             return (
               <div
                 key={index}
-                onClick={() => setSelectedOption(index)}
+                onClick={() => !isSubmitting && toggleOption(option)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: `${spacing.md}px`,
-                  padding: `${spacing.md}px`,
+                  gap: spacing.md,
+                  padding: spacing.md,
                   borderRadius: '12px',
                   border: `2px solid ${isSelected ? colors.primary : colors.border}`,
                   background: isSelected ? colors.primary + '15' : colors.surface,
                   cursor: isSubmitting ? 'not-allowed' : 'pointer',
                   transition: 'all 0.2s ease',
-                  opacity: 0,
-                  animation: `fadeInUp 0.5s ease forwards ${index * 50}ms`,
-                }}
-                onMouseEnter={(e) => {
-                  if (!isSubmitting) {
-                    e.currentTarget.style.transform = 'scale(1.02)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'scale(1)';
+                  opacity: isSubmitting ? 0.6 : 1,
                 }}
               >
                 {isSelected ? (
                   <CheckCircle size={24} color={colors.primary} weight="fill" />
                 ) : (
-                  <div
-                    style={{
-                      width: '24px',
-                      height: '24px',
-                      borderRadius: '12px',
-                      border: `2px solid ${colors.textLight}`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  />
+                  <Circle size={24} color={colors.border} weight="regular" />
                 )}
-                <span
-                  style={{
-                    flex: 1,
-                    fontSize: '16px',
-                    lineHeight: '22px',
-                    color: isSelected ? colors.primary : colors.text,
-                    fontWeight: isSelected ? 600 : 400,
-                  }}
-                >
+                <span style={{
+                  flex: 1,
+                  fontSize: '15px',
+                  lineHeight: '22px',
+                  color: isSelected ? colors.text : colors.textSecondary,
+                  fontWeight: isSelected ? 600 : 400,
+                }}>
                   {option}
                 </span>
               </div>
@@ -114,30 +102,14 @@ export const MultipleChoiceTask: React.FC<MultipleChoiceTaskProps> = ({ point, o
         </div>
 
         <Button
-          title="Подтвердить"
+          title="Подтвердить ответ"
           variant="primary"
           onClick={handleSubmit}
-          disabled={selectedOption === null || isSubmitting}
+          disabled={selectedOptions.length === 0 || isSubmitting}
           loading={isSubmitting}
-          icon={<Check size={20} color="#FFFFFF" weight="bold" />}
           fullWidth
         />
       </Card>
-
-      <style>
-        {`
-          @keyframes fadeInUp {
-            from {
-              opacity: 0;
-              transform: translateY(20px);
-            }
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-        `}
-      </style>
     </div>
   );
 };

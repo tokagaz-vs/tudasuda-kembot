@@ -5,18 +5,21 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTelegram } from '@/hooks/useTelegram';
 import { useAuthStore } from '@/store/authStore';
 import { questService } from '@/services/quest.service';
+import { rewardsService } from '@/services/rewards.service';
 import { Quest } from '@/types';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '@/constants';
 import { 
-  Star, 
-  MapPin, 
+  Users,
   Trophy, 
   Target, 
   ArrowRight, 
   Sparkle, 
   Lightning, 
-  CalendarBlank 
+  ShoppingCart,
+  CalendarBlank, // ✅ НОВОЕ: иконка для событий
+  Crown,
+  Coins,
 } from '@phosphor-icons/react';
 
 export const HomePage: React.FC = () => {
@@ -105,6 +108,7 @@ export const HomePage: React.FC = () => {
             fontSize: '12px',
             fontWeight: 600,
             color: colors.text,
+            textAlign: 'center',
           }}
         >
           {label}
@@ -113,77 +117,77 @@ export const HomePage: React.FC = () => {
     </div>
   );
 
-  const QuestCard = ({ quest, index }: { quest: Quest; index: number }) => (
-    <div
-      style={{
-        opacity: 0,
-        animation: `fadeInRight 0.5s ease forwards ${index * 100}ms`,
-        marginBottom: `${spacing.md}px`,
-      }}
-    >
-      <Card
-        variant="glass"
-        onPress={() => {
-          hapticFeedback.impact('light');
-          navigate(`${ROUTES.quests}/${quest.id}`);
+  const QuestCard = ({ quest, index }: { quest: Quest; index: number }) => {
+    // ✅ НОВОЕ: Получаем информацию о наградах по сложности
+    const rewardInfo = rewardsService.getQuestReward(quest.difficulty);
+    
+    // Мапинг сложности на русский
+    const difficultyLabels = {
+      easy: 'Легко',
+      medium: 'Средне',
+      hard: 'Сложно',
+    };
+
+    const difficultyColors = {
+      easy: '#10B981',
+      medium: '#F59E0B',
+      hard: '#EF4444',
+    };
+
+    return (
+      <div
+        style={{
+          opacity: 0,
+          animation: `fadeInRight 0.5s ease forwards ${index * 100}ms`,
+          marginBottom: `${spacing.md}px`,
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: `${spacing.sm}px`,
+        <Card
+          variant="glass"
+          onPress={() => {
+            hapticFeedback.impact('light');
+            navigate(`${ROUTES.quests}/${quest.id}`);
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div
-              style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '4px',
-                background: quest.category?.color || colors.primary,
-              }}
-            />
-            <span
-              style={{
-                fontSize: '12px',
-                fontWeight: 600,
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                color: colors.textSecondary,
-              }}
-            >
-              {quest.category?.name || 'Квест'}
-            </span>
-          </div>
-          <ArrowRight size={20} color={colors.textLight} />
-        </div>
-
-        <h3
-          style={{
-            ...typography.h3,
-            fontSize: '18px',
-            color: colors.text,
-            marginBottom: `${spacing.xs}px`,
-            letterSpacing: '-0.2px',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-          }}
-        >
-          {quest.title}
-        </h3>
-
-        {quest.description && (
-          <p
+          <div
             style={{
-              fontSize: '14px',
-              lineHeight: '20px',
-              color: colors.textSecondary,
-              marginBottom: `${spacing.md}px`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: `${spacing.sm}px`,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '4px',
+                  background: quest.category?.color || colors.primary,
+                }}
+              />
+              <span
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  color: colors.textSecondary,
+                }}
+              >
+                {quest.category?.name || 'Квест'}
+              </span>
+            </div>
+            <ArrowRight size={20} color={colors.textLight} />
+          </div>
+
+          <h3
+            style={{
+              ...typography.h3,
+              fontSize: '18px',
+              color: colors.text,
+              marginBottom: `${spacing.xs}px`,
+              letterSpacing: '-0.2px',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               display: '-webkit-box',
@@ -191,44 +195,97 @@ export const HomePage: React.FC = () => {
               WebkitBoxOrient: 'vertical',
             }}
           >
-            {quest.description}
-          </p>
-        )}
+            {quest.title}
+          </h3>
 
-        <div style={{ display: 'flex', gap: `${spacing.md}px` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Star size={16} color={colors.warning} weight="fill" />
-            <span
+          {quest.description && (
+            <p
               style={{
-                fontSize: '13px',
-                fontWeight: 600,
-                color: colors.text,
+                fontSize: '14px',
+                lineHeight: '20px',
+                color: colors.textSecondary,
+                marginBottom: `${spacing.md}px`,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
               }}
             >
-              {quest.points_reward || 0}
-            </span>
+              {quest.description}
+            </p>
+          )}
+
+          {/* ✅ ОБНОВЛЕНО: Показываем награды и сложность */}
+          <div style={{ display: 'flex', gap: `${spacing.md}px`, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div
+                style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '3px',
+                  background: difficultyColors[quest.difficulty],
+                }}
+              />
+              <span
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: colors.text,
+                }}
+              >
+                {difficultyLabels[quest.difficulty]}
+              </span>
+            </div>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Sparkle size={14} color={colors.primary} weight="fill" />
+              <span
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: colors.textSecondary,
+                }}
+              >
+                +{rewardInfo.experience} XP
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Coins size={14} color={colors.warning} weight="fill" />
+              <span
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: colors.textSecondary,
+                }}
+              >
+                +{rewardInfo.coins}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Lightning size={14} color={colors.error} weight="fill" />
+              <span
+                style={{
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: colors.textSecondary,
+                }}
+              >
+                -{rewardInfo.energy_cost}
+              </span>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <Lightning size={16} color={colors.primary} weight="fill" />
-            <span
-              style={{
-                fontSize: '13px',
-                fontWeight: 600,
-                color: colors.text,
-              }}
-            >
-              {quest.difficulty || 'Легко'}
-            </span>
-          </div>
-        </div>
-      </Card>
-    </div>
-  );
+        </Card>
+      </div>
+    );
+  };
 
   return (
     <Layout>
       <div style={{ minHeight: '100vh' }}>
-        {/* Градиентный хедер */}
+        {/* ✅ ОБНОВЛЕНО: Градиентный хедер БЕЗ кнопки звездочки */}
         <div
           style={{
             background: `linear-gradient(135deg, ${gradients.brand.colors[0]}, ${gradients.brand.colors[1]})`,
@@ -239,7 +296,6 @@ export const HomePage: React.FC = () => {
             overflow: 'hidden',
           }}
         >
-          {/* Декоративные звездочки */}
           <Sparkle
             size={16}
             color="rgba(255,255,255,0.3)"
@@ -277,82 +333,99 @@ export const HomePage: React.FC = () => {
               animation: 'fadeInDown 0.5s ease forwards 100ms',
             }}
           >
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'flex-start',
-                marginBottom: `${spacing.md}px`,
-              }}
-            >
-              <div>
-                <p
-                  style={{
-                    fontSize: '14px',
-                    color: 'rgba(255,255,255,0.8)',
-                    marginBottom: '4px',
-                  }}
-                >
-                  {getGreeting()}
-                </p>
-                <h1
-                  style={{
-                    fontSize: '28px',
-                    fontWeight: 700,
-                    color: '#FFFFFF',
-                    letterSpacing: '-0.5px',
-                    margin: 0,
-                  }}
-                >
-                  {user?.full_name || user?.username || 'Путешественник'}
-                </h1>
-              </div>
-
-              <GlassPanel
-                padding={0}
-                borderRadius={999}
+            {/* ✅ ОБНОВЛЕНО: Убрана кнопка со звездочкой */}
+            <div style={{ marginBottom: `${spacing.md}px` }}>
+              <p
                 style={{
-                  overflow: 'hidden',
+                  fontSize: '14px',
+                  color: 'rgba(255,255,255,0.8)',
+                  marginBottom: '4px',
                 }}
               >
+                {getGreeting()}
+              </p>
+              <h1
+                style={{
+                  fontSize: '28px',
+                  fontWeight: 700,
+                  color: '#FFFFFF',
+                  letterSpacing: '-0.5px',
+                  margin: 0,
+                }}
+              >
+                {user?.first_name || user?.username || 'Путешественник'}
+              </h1>
+              
+              {/* ✅ НОВОЕ: Показываем статус премиум, если есть */}
+              {user?.is_premium && (
                 <div
-                  onClick={() => navigate(ROUTES.profile)}
                   style={{
-                    display: 'flex',
+                    display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: '10px 16px',
-                    cursor: 'pointer',
+                    gap: '4px',
+                    marginTop: `${spacing.xs}px`,
+                    padding: '4px 12px',
+                    background: 'rgba(255, 215, 0, 0.2)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255, 215, 0, 0.3)',
                   }}
                 >
-                  <Star size={20} color="#FFD700" weight="fill" />
-                  <span
-                    style={{
-                      fontSize: '18px',
-                      fontWeight: 700,
-                      color: '#FFFFFF',
-                    }}
-                  >
-                    {user?.points || 0}
+                  <Crown size={14} color="#FFD700" weight="fill" />
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: '#FFD700' }}>
+                    Premium
                   </span>
+                </div>
+              )}
+            </div>
+
+            {/* ✅ НОВОЕ: Мини-статистика */}
+            <div style={{ display: 'flex', gap: `${spacing.md}px` }}>
+              <GlassPanel padding={spacing.sm} style={{ flex: 1 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', marginBottom: '2px' }}>
+                    Уровень
+                  </div>
+                  <div style={{ fontSize: '20px', fontWeight: 700, color: '#FFFFFF' }}>
+                    {user?.level || 1}
+                  </div>
+                </div>
+              </GlassPanel>
+
+              <GlassPanel padding={spacing.sm} style={{ flex: 1 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', marginBottom: '2px' }}>
+                    Монеты
+                  </div>
+                  <div style={{ 
+                    fontSize: '20px', 
+                    fontWeight: 700, 
+                    color: '#FFFFFF',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                  }}>
+                    <Coins size={16} color="#FFD700" weight="fill" />
+                    {user?.coins || 0}
+                  </div>
+                </div>
+              </GlassPanel>
+
+              <GlassPanel padding={spacing.sm} style={{ flex: 1 }}>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', marginBottom: '2px' }}>
+                    Энергия
+                  </div>
+                  <div style={{ fontSize: '20px', fontWeight: 700, color: '#FFFFFF' }}>
+                    {user?.energy || 0}
+                  </div>
                 </div>
               </GlassPanel>
             </div>
-
-            <p
-              style={{
-                fontSize: '15px',
-                color: 'rgba(255,255,255,0.8)',
-                lineHeight: '22px',
-                margin: 0,
-              }}
-            >
-              Исследуй город и получай награды
-            </p>
           </div>
         </div>
 
-        {/* Быстрые действия */}
+        {/* ✅ ОБНОВЛЕНО: Квесты, События, Компания, Магазин */}
         <div
           style={{
             display: 'flex',
@@ -368,24 +441,24 @@ export const HomePage: React.FC = () => {
             delay={200}
           />
           <QuickActionButton
-            icon={MapPin}
-            label="Карта"
-            color={colors.success}
-            onPress={() => navigate(ROUTES.map)}
+            icon={CalendarBlank}
+            label="События"
+            color="#F59E0B"
+            onPress={() => navigate('/events')}
             delay={250}
           />
           <QuickActionButton
-            icon={Trophy}
-            label="Рейтинг"
-            color={colors.warning}
-            onPress={() => navigate(ROUTES.leaderboard)}
+            icon={Users}
+            label="Компания"
+            color={colors.success}
+            onPress={() => navigate('/companions')}
             delay={300}
           />
           <QuickActionButton
-            icon={CalendarBlank}
-            label="События"
-            color={colors.secondary}
-            onPress={() => {}}
+            icon={ShoppingCart}
+            label="Магазин"
+            color={'#7C4DFF'}
+            onPress={() => navigate('/shop')}
             delay={350}
           />
         </div>
@@ -489,7 +562,7 @@ export const HomePage: React.FC = () => {
         >
           <Card variant="gradient" gradient={['#7C4DFF', '#18A0FB'] as const}>
             <div style={{ display: 'flex', alignItems: 'center', gap: `${spacing.md}px` }}>
-              <Lightning size={32} color="#FFFFFF" weight="fill" />
+              <Trophy size={32} color="#FFFFFF" weight="fill" />
               <div style={{ flex: 1 }}>
                 <h3
                   style={{
@@ -509,7 +582,7 @@ export const HomePage: React.FC = () => {
                     margin: 0,
                   }}
                 >
-                  Пройди первый квест и получи 100 очков
+                  Пройди первый квест и получи награды!
                 </p>
               </div>
             </div>

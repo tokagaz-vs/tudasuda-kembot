@@ -126,10 +126,10 @@ export type UserRole = 'user' | 'moderator' | 'admin';
 export interface User {
   id: string;
   telegram_id: number;
-  username?: string;
+  username?: string | null;
   first_name: string;
-  last_name?: string;
-  full_name?: string; // добавь это
+  last_name?: string | null;
+  full_name?: string;
   photo_url?: string;
   language_code: string;
   is_premium: boolean;
@@ -155,6 +155,17 @@ export interface User {
 // =====================================================
 
 export type QuestDifficulty = 'easy' | 'medium' | 'hard';
+
+// ✅ ДОБАВЛЕНО: QuestTaskType
+export type QuestTaskType = 
+  | 'quiz'
+  | 'text' 
+  | 'text_input'
+  | 'multiple_choice'
+  | 'photo'
+  | 'selfie'
+  | 'location';
+
 export interface QuestCategory {
   id: string;
   name: string;
@@ -163,6 +174,7 @@ export interface QuestCategory {
   description?: string;
   created_at: string;
 }
+
 export type QuestStatus = 'not_started' | 'in_progress' | 'completed' | 'failed' | 'abandoned';
 
 export type TaskType = 'photo' | 'selfie' | 'text' | 'choice' | 'location' | 'qr';
@@ -220,13 +232,15 @@ export interface Quest {
   preview_images?: string[];
   difficulty: QuestDifficulty;
   reward_points: number;
-  points_reward?: number; // алиас для совместимости
-  status: QuestStatus;
-  category?: QuestCategory; // опциональная категория
+  points_reward?: number;
+  status?: QuestStatus;
+  category_id?: string; // ✅ ДОБАВЛЕНО
+  category?: QuestCategory;
   tags?: string[];
   tips?: string;
   estimated_duration?: number;
   total_distance?: number;
+  is_active?: boolean; // ✅ ДОБАВЛЕНО
   created_by?: string;
   created_at: string;
   updated_at: string;
@@ -491,47 +505,64 @@ export interface LocationData extends Coordinates {
   timestamp?: number;
 }
 
+// ✅ ОБНОВЛЕНО: QuestPoint с правильным task_type
 export interface QuestPoint {
   id: string;
   quest_id: string;
-  order_number: number;
+  order_number?: number;
+  order_index?: number;
   title: string;
   description?: string;
   latitude: number;
   longitude: number;
-  radius: number;
-  task_type: 'multiple_choice' | 'text_input' | 'photo' | 'selfie';
-  task_data?: any;
-  correct_answer?: string;
+  radius?: number;
+  task_type: QuestTaskType; // ✅ Используем QuestTaskType
+  task_data?: {
+    question?: string;
+    description?: string;
+    instruction?: string;
+    options?: string[];
+    hint?: string;
+    [key: string]: any;
+  };
+  correct_answer?: string | string[];
   points: number;
   audio_url?: string;
   hint?: string;
   excursion_text?: string;
   image_url?: string;
-  created_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
+// ✅ QuestWithDetails
 export interface QuestWithDetails extends Quest {
   points: QuestPoint[];
   totalPoints: number;
   pointsCount: number;
 }
 
+// ✅ ОБНОВЛЕНО: UserProgress с created_at и updated_at
 export interface UserProgress {
   id: string;
   user_id: string;
   quest_id: string;
   current_point: number;
-  status: 'in_progress' | 'completed' | 'abandoned';
-  started_at: string;
-  completed_at?: string;
+  current_task_index?: number;
+  status: 'not_started' | 'in_progress' | 'completed' | 'abandoned';
   total_points: number;
+  score?: number;
+  started_at?: string;
+  completed_at?: string;
+  created_at?: string; // ✅ ДОБАВЛЕНО
+  updated_at?: string; // ✅ ДОБАВЛЕНО
 }
 
+// ✅ ОБНОВЛЕНО: QuestFilters с is_active
 export interface QuestFilters {
   category_id?: string;
   difficulty?: QuestDifficulty;
   search?: string;
   status?: QuestStatus;
+  is_active?: boolean; // ✅ ДОБАВЛЕНО
 }
-
